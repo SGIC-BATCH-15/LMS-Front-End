@@ -44,7 +44,7 @@ export const Company: React.FC = () => {
         name: '',
         address: '',
         email: '',
-        password: '',
+        phoneNumber: '',
     });
 
     // Filter and Pagination Logic
@@ -70,7 +70,7 @@ export const Company: React.FC = () => {
                 name: company.name,
                 address: company.address,
                 email: company.email,
-                password: company.password,
+                phoneNumber: company.phoneNumber,
             });
         } else {
             setEditingCompany(null);
@@ -78,7 +78,7 @@ export const Company: React.FC = () => {
                 name: '',
                 address: '',
                 email: '',
-                password: '',
+                phoneNumber: '',
             });
         }
         setIsDialogOpen(true);
@@ -91,12 +91,12 @@ export const Company: React.FC = () => {
             name: '',
             address: '',
             email: '',
-            password: '',
+            phoneNumber: '',
         });
     };
 
     const handleSave = () => {
-        if (!formData.name || !formData.address || !formData.email || !formData.password) {
+        if (!formData.name || !formData.address || !formData.email || !formData.phoneNumber) {
             toast.error('Please fill in all fields');
             return;
         }
@@ -170,6 +170,7 @@ export const Company: React.FC = () => {
                                 <TableHead>Company Name</TableHead>
                                 <TableHead>Address</TableHead>
                                 <TableHead>Email</TableHead>
+                                <TableHead>Phone Number</TableHead>
                                 <TableHead className="text-right">Actions</TableHead>
                             </TableRow>
                         </TableHeader>
@@ -186,6 +187,7 @@ export const Company: React.FC = () => {
                                         <TableCell className="font-medium">{company.name}</TableCell>
                                         <TableCell>{company.address}</TableCell>
                                         <TableCell>{company.email}</TableCell>
+                                        <TableCell>{company.phoneNumber}</TableCell>
                                         <TableCell className="text-right">
                                             <div className="flex justify-end gap-2">
                                                 <Button
@@ -295,15 +297,14 @@ export const Company: React.FC = () => {
                                 />
                             </div>
                             <div className="space-y-2">
-                                <Label htmlFor="password">
-                                    Password <span className="text-red-500">*</span>
+                                <Label htmlFor="phoneNumber">
+                                    Phone Number <span className="text-red-500">*</span>
                                 </Label>
                                 <Input
-                                    id="password"
-                                    type="password"
-                                    value={formData.password}
-                                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                                    placeholder="••••••••"
+                                    id="phoneNumber"
+                                    value={formData.phoneNumber}
+                                    onChange={(e) => setFormData({ ...formData, phoneNumber: e.target.value })}
+                                    placeholder="+1 (555) 000-0000"
                                 />
                             </div>
                         </div>
