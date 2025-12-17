@@ -22,15 +22,26 @@ export const Login: React.FC = () => {
         setError('');
         setIsLoading(true);
 
+        // Basic validation
+        if (!email || !password) {
+            setError('Please enter both email and password');
+            setIsLoading(false);
+            return;
+        }
+
         try {
-            const success = login(email, password);
+            const success = await login(email, password);
             if (success) {
                 navigate('/');
             } else {
-                setError('Invalid email or password. Please try again.');
+                setError('Invalid email or password');
             }
-        } catch (err) {
-            setError('An error occurred during login. Please try again.');
+        } catch (err: any) {
+            // Display the specific error message from backend or default message
+            const errorMessage = err.message || 'Invalid email or password';
+            setError(errorMessage);
+            
+            console.error('Login error:', err);
         } finally {
             setIsLoading(false);
         }
