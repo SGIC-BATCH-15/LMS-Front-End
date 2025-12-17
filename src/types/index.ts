@@ -4,6 +4,21 @@ export type LeaveType = 'annual' | 'casual' | 'sick' | 'maternity' | 'paternity'
 
 export type LeaveStatus = 'pending' | 'approved' | 'rejected' | 'cancelled';
 
+// Login related types
+export interface LoginRequest {
+  email: string;
+  password: string;
+}
+
+export interface LoginResponse {
+  statusCode: number;
+  statusMessage: string;
+  data: {
+    accessToken: string;
+    expiresIn: number;
+  };
+}
+
 export type ApprovalStatus = 'pending' | 'approved' | 'rejected';
 
 export interface Department {
