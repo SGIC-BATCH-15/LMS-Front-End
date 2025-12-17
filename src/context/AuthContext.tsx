@@ -2,13 +2,14 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 import { User, UserRole } from '@/types';
 import { users } from '@/data/mockData';
 import { defaultRolePermissions } from '@/data/permissions';
+import authService from '@/components/services/authService';
 
 import { roles as initialRoles, Role } from '@/data/roles';
 
 interface AuthContextType {
   currentUser: User | null;
   isAuthenticated: boolean;
-  login: (email: string, password: string) => boolean;
+  login: (email: string, password: string) => Promise<boolean>;
   logout: () => void;
   rolePermissions: Record<UserRole, Set<string>>;
   updateRolePermission: (role: UserRole, permissionId: string, hasAccess: boolean) => void;
@@ -34,7 +35,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     if (storedUser) {
       try {
         const user = JSON.parse(storedUser);
-        setCurrentUser(user);
+        // Check if token is still valid before setting current user
+        if (authService.isAuthenticated()) {
+          setCurrentUser(user);
+        } else {
+          // Token expired or invalid, clear stored user
+          localStorage.removeItem(AUTH_STORAGE_KEY);
+        }
       } catch (error) {
         console.error('Failed to parse stored user:', error);
         localStorage.removeItem(AUTH_STORAGE_KEY);
@@ -48,22 +55,41 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   }, []);
 
-  const login = (email: string, password: string): boolean => {
-    // For demo purposes, find user by email only (password not validated)
-    const user = users.find(u => u.email.toLowerCase() === email.toLowerCase());
-
-    if (user) {
-      setCurrentUser(user);
-      localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(user));
-      return true;
+  const login = async (email: string, password: string): Promise<boolean> => {
+    try {
+      const response = await authService.login({ email, password });
+      
+      if (response.statusCode === 2000 && response.data.accessToken) {
+        // Use existing user from mock data or create basic user
+        const user = users.find(u => u.email.toLowerCase() === email.toLowerCase()) || {
+          id: 'user-1', // Use proper user ID format to match mock data
+          name: email.split('@')[0],
+          firstName: email.split('@')[0],
+          lastName: '',
+          email,
+          role: 'admin' as UserRole, // Use admin role to match user-1 in mock data
+          departmentId: 'dept-1',
+          designation: 'Administrator',
+          joinDate: new Date().toISOString(),
+          currentExperience: 0,
+          previousExperience: 0,
+        };
+        
+        setCurrentUser(user);
+        localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(user));
+        return true;
+      }
+      
+      return false;
+    } catch (error: any) {
+      console.error('Login error:', error);
+      throw error;
     }
-
-    return false;
   };
 
   const logout = () => {
     setCurrentUser(null);
-    localStorage.removeItem(AUTH_STORAGE_KEY);
+    authService.logout();
   };
 
   const updateRolePermission = (role: UserRole, permissionId: string, hasAccess: boolean) => {
