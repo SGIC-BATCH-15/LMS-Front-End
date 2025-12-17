@@ -1,10 +1,11 @@
 // Shared company data that can be used across the application
 export interface Company {
     id: string;
-    name: string;
-    address: string;
-    email: string;
-    phoneNumber: string;
+    name?: string; // Optional for backward compatibility
+    companyName?: string; // Backend uses this field
+    address?: string;
+    email?: string;
+    phoneNumber?: string;
 }
 
 // Initial mock companies data
