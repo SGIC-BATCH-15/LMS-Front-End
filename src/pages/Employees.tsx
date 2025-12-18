@@ -73,7 +73,8 @@ export const Employees: React.FC = () => {
     
     setLoadingDepartments(true);
     try {
-      const departmentsData = await departmentService.getDepartmentsByCompanyId(companyId);
+      // Always use companyId 1
+      const departmentsData = await departmentService.getDepartmentsByCompanyId('1');
       setDepartments(departmentsData);
       
       if (departmentsData.length === 0) {
@@ -132,8 +133,10 @@ export const Employees: React.FC = () => {
         // Ensure we have a valid array
         if (Array.isArray(companiesData)) {
           console.log(`🎉 Setting ${companiesData.length} companies to state`);
-          setCompanies(companiesData);
-          toast.success(`Successfully loaded ${companiesData.length} companies from backend`);
+          // Filter to only show company with ID 1
+          const filteredCompanies = companiesData.filter(company => company.id === '1' || company.id === 1);
+          setCompanies(filteredCompanies);
+          toast.success(`Successfully loaded ${filteredCompanies.length} companies from backend`);
         } else {
           console.warn('⚠️ API returned non-array data:', companiesData);
           toast.error('Invalid data format received from backend.');
@@ -275,6 +278,44 @@ export const Employees: React.FC = () => {
     };
 
     fetchRoles();
+  }, []);
+
+  // Fetch departments from API
+  useEffect(() => {
+    const fetchDepartments = async () => {
+      console.log('🚀 Starting to fetch departments...');
+      
+      const token = localStorage.getItem('authToken');
+      if (!token || token === 'undefined' || token === 'null') {
+        console.warn('🔒 No valid authentication token found for departments');
+        setDepartments([]);
+        return;
+      }
+      
+      setLoadingDepartments(true);
+      try {
+        console.log('📞 Calling departmentService.getDepartmentsByCompanyId()...');
+        const departmentsData = await departmentService.getDepartmentsByCompanyId('1');
+        console.log('✅ Received departments data:', departmentsData);
+        
+        if (Array.isArray(departmentsData) && departmentsData.length > 0) {
+          console.log(`🎉 Setting ${departmentsData.length} departments to state`);
+          setDepartments(departmentsData);
+        } else {
+          console.log('ℹ️ No departments found');
+          setDepartments([]);
+        }
+      } catch (error) {
+        console.error('❌ Failed to fetch departments:', error);
+        toast.error('Failed to load departments from backend.');
+        setDepartments([]);
+      } finally {
+        console.log('🏁 Finished loading departments');
+        setLoadingDepartments(false);
+      }
+    };
+
+    fetchDepartments();
   }, []);
 
   // Reset page when filters change
