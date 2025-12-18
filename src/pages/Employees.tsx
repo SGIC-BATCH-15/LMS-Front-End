@@ -1,8 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { DashboardLayout } from '@/components/templates/DashboardLayout/DashboardLayout';
 import { UserAvatar } from '@/components/atoms/Avatar/UserAvatar';
-
-
 import { Company } from '@/data/companies';
 import { roles as mockRoles } from '@/data/roles';
 import { designationsList } from '@/data/designationsList';
@@ -159,6 +157,61 @@ export const Employees: React.FC = () => {
     fetchCompanies();
   }, []);
 
+  // Fetch employees when component mounts
+  useEffect(() => {
+    const fetchAllEmployees = async () => {
+      const token = localStorage.getItem('authToken');
+      if (!token || token === 'undefined' || token === 'null') {
+        console.warn('🔒 No valid authentication token for fetching employees');
+        return;
+      }
+
+      console.log('🚀 Fetching all employees...');
+      try {
+        // Use getEmployeesByCompany with companyId 1 to get all employees
+        const employeesData = await employeeService.getEmployeesByCompany(1);
+        console.log('✅ Received employees data:', employeesData);
+        
+        if (Array.isArray(employeesData)) {
+          // Convert backend employee data to User format
+          const mappedEmployees = employeesData.map(emp => {
+            // Get the role name from roleIds
+            let roleName: UserRole = 'employee';
+            if (emp.roleIds && emp.roleIds.length > 0 && roles.length > 0) {
+              const roleObj = roles.find(r => r.id === emp.roleIds[0]);
+              if (roleObj) {
+                roleName = roleObj.name.toLowerCase() as UserRole;
+              }
+            }
+            
+            return {
+              id: emp.id?.toString() || '',
+              name: `${emp.firstName || ''} ${emp.lastName || ''}`.trim(),
+              firstName: emp.firstName || '',
+              lastName: emp.lastName || '',
+              email: emp.email || '',
+              password: emp.password || '',
+              role: roleName,
+              roleIds: emp.roleIds || [],
+              departmentId: emp.departmentId?.toString() || '',
+              companyId: emp.companyId?.toString() || '1',
+              designation: emp.designationId?.toString() || '',
+              joinDate: emp.joinDate || '',
+              currentExperience: calculateCurrentExperience(emp.joinDate || ''),
+              previousExperience: emp.previousExperience || 0,
+            };
+          });
+          
+          setUsers(mappedEmployees);
+        }
+      } catch (error) {
+        console.error('❌ Failed to fetch all employees:', error);
+      }
+    };
+
+    fetchAllEmployees();
+  }, [roles]); // Re-fetch when roles are loaded
+
   // Fetch employees when company filter changes
   useEffect(() => {
     const fetchEmployeesByCompany = async () => {
@@ -205,7 +258,7 @@ export const Employees: React.FC = () => {
               companyId: emp.companyId?.toString() || filterCompany,
               designation: emp.designationId?.toString() || '',
               joinDate: emp.joinDate || '',
-              currentExperience: 0,
+              currentExperience: calculateCurrentExperience(emp.joinDate || ''),
               previousExperience: emp.previousExperience || 0,
             };
           });
@@ -456,10 +509,11 @@ export const Employees: React.FC = () => {
         console.log('✅ Employee updated successfully in database:', response);
         toast.success('Employee updated successfully in the database!');
         
-        // Update local state for immediate UI update
+        // Find the role name from the roles array using the roleId
         const selectedRole = roles.find(role => role.id.toString() === formData.role);
         const roleName = selectedRole ? selectedRole.name.toLowerCase() as UserRole : 'employee' as UserRole;
         
+        // Update local state for immediate UI update
         const updatedUser: User = {
           ...editingUser,
           name: fullName,
@@ -480,11 +534,12 @@ export const Employees: React.FC = () => {
         console.log('➕ Updating employee in local UI state');
         setUsers(users.map(u => u.id === editingUser.id ? updatedUser : u));
         
+        // Close dialog only after successful update
+        setIsDialogOpen(false);
       } catch (error) {
         console.error('❌ Failed to update employee in database:', error);
         console.error('❌ Error message:', error.message);
         toast.error(`Failed to update employee: ${error.message}`);
-        return; // Don't close dialog on error
       } finally {
         setSavingEmployee(false);
       }
@@ -494,7 +549,7 @@ export const Employees: React.FC = () => {
       setSavingEmployee(true);
       try {
         console.log('📝 Preparing employee data for backend...');
-                console.log('🔍 Form data before creating employee object:', formData);
+        console.log('🔍 Form data before creating employee object:', formData);
         console.log('🔍 Role value from form:', formData.role, 'Type:', typeof formData.role);
         console.log('🔍 Parsed role ID:', parseInt(formData.role), 'IsNaN:', isNaN(parseInt(formData.role)));
         console.log('🔍 Available roles:', roles.map(r => ({ id: r.id, name: r.name, type: typeof r.id })));
@@ -524,40 +579,58 @@ export const Employees: React.FC = () => {
         console.log('✅ Employee saved successfully to database:', response);
         toast.success('Employee added successfully to the database!');
         
-        // Add to local state for immediate UI update
         // Find the role name from the roles array using the roleId
         const selectedRole = roles.find(role => role.id.toString() === formData.role);
         const roleName = selectedRole ? selectedRole.name.toLowerCase() as UserRole : 'employee' as UserRole;
         
+        // Create new user object for local state
         const newUser: User = {
-          id: response.data.id.toString(),
+          id: response.data.id.toString(), // Use the ID from the response
           name: fullName,
           firstName: formData.firstName,
           lastName: formData.lastName,
           email: formData.email,
           password: formData.password,
           departmentId: formData.departmentId,
-          role: roleName, // Use the role name, not the ID
+          companyId: formData.companyId,
+          role: roleName,
+          roleIds: [roleId],
           designation: formData.designation,
           joinDate: formData.joinDate,
           currentExperience: calculatedCurrentExp,
           previousExperience: formData.previousExperience,
         };
         
-        console.log('➕ Adding employee to local UI state for immediate display');
-        setUsers([...users, newUser]);
+        console.log('➕ Adding employee to local UI state for immediate display:', newUser);
+        
+        // Add to local state immediately - this will update the UI without refresh
+        setUsers(prevUsers => [...prevUsers, newUser]);
+        
+        // Reset form and close dialog
+        setFormData({
+          firstName: '',
+          lastName: '',
+          email: '',
+          password: '',
+          companyId: '',
+          departmentId: '',
+          role: '',
+          designation: '',
+          joinDate: new Date().toISOString().split('T')[0],
+          previousExperience: 0,
+        });
+        
+        // Close dialog only after successful addition
+        setIsDialogOpen(false);
         
       } catch (error) {
         console.error('❌ Failed to save employee to database:', error);
         console.error('❌ Error message:', error.message);
         toast.error(error.message || 'Failed to save employee to database. Please try again.');
-        return; // Don't close dialog on error
       } finally {
         setSavingEmployee(false);
       }
     }
-
-    setIsDialogOpen(false);
   };
 
   const handleDelete = async (userId: string) => {
@@ -569,8 +642,8 @@ export const Employees: React.FC = () => {
         console.log('✅ Employee deleted successfully from database');
         toast.success('Employee deleted successfully from the database!');
         
-        // Remove from local state
-        setUsers(users.filter(u => u.id !== userId));
+        // Remove from local state immediately
+        setUsers(prevUsers => prevUsers.filter(u => u.id !== userId));
         setBalances(prev => prev.filter(b => b.userId !== userId));
         
       } catch (error) {
@@ -623,7 +696,8 @@ export const Employees: React.FC = () => {
                       {company.companyName || company.name || 'Unnamed Company'}
                     </SelectItem>
                   ))
-                )}\n              </SelectContent>
+                )}
+              </SelectContent>
             </Select>
             <Select value={filterDepartment} onValueChange={setFilterDepartment}>
               <SelectTrigger className="w-48">
@@ -650,7 +724,9 @@ export const Employees: React.FC = () => {
                 <SelectItem value="all">All Roles</SelectItem>
                 <SelectItem value="admin">Admin</SelectItem>
                 <SelectItem value="manager">Manager</SelectItem>
-                <SelectItem value="staff">Staff</SelectItem>                <SelectItem value="employee">Employee</SelectItem>              </SelectContent>
+                <SelectItem value="staff">Staff</SelectItem>
+                <SelectItem value="employee">Employee</SelectItem>
+              </SelectContent>
             </Select>
           </div>
           <div className="flex gap-2">
@@ -666,193 +742,192 @@ export const Employees: React.FC = () => {
                   <DialogTitle>{editingUser ? 'Edit Employee' : 'Add New Employee'}</DialogTitle>
                 </DialogHeader>
                 <div className="space-y-4 py-4">
+                  {/* Names */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="firstName">First Name *</Label>
+                      <Input
+                        id="firstName"
+                        placeholder="John"
+                        value={formData.firstName}
+                        onChange={e => setFormData({ ...formData, firstName: e.target.value })}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="lastName">Last Name *</Label>
+                      <Input
+                        id="lastName"
+                        placeholder="Doe"
+                        value={formData.lastName}
+                        onChange={e => setFormData({ ...formData, lastName: e.target.value })}
+                      />
+                    </div>
+                  </div>
 
-                {/* Names */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="firstName">First Name *</Label>
-                    <Input
-                      id="firstName"
-                      placeholder="John"
-                      value={formData.firstName}
-                      onChange={e => setFormData({ ...formData, firstName: e.target.value })}
-                    />
+                  {/* Email & Password */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="email">Email *</Label>
+                      <Input
+                        id="email"
+                        type="email"
+                        placeholder="john@company.com"
+                        value={formData.email}
+                        onChange={e => setFormData({ ...formData, email: e.target.value })}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="password">Password {editingUser ? '(Leave empty to keep)' : '*'}</Label>
+                      <Input
+                        id="password"
+                        type="password"
+                        placeholder={editingUser ? "******" : "Required"}
+                        value={formData.password}
+                        onChange={e => setFormData({ ...formData, password: e.target.value })}
+                      />
+                    </div>
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="lastName">Last Name *</Label>
-                    <Input
-                      id="lastName"
-                      placeholder="Doe"
-                      value={formData.lastName}
-                      onChange={e => setFormData({ ...formData, lastName: e.target.value })}
-                    />
-                  </div>
-                </div>
 
-                {/* Email & Password */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="email">Email *</Label>
-                    <Input
-                      id="email"
-                      type="email"
-                      placeholder="john@company.com"
-                      value={formData.email}
-                      onChange={e => setFormData({ ...formData, email: e.target.value })}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="password">Password {editingUser ? '(Leave empty to keep)' : '*'}</Label>
-                    <Input
-                      id="password"
-                      type="password"
-                      placeholder={editingUser ? "******" : "Required"}
-                      value={formData.password}
-                      onChange={e => setFormData({ ...formData, password: e.target.value })}
-                    />
-                  </div>
-                </div>
-
-                {/* Company & Department */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="company">Company *</Label>
-                    <Select
-                      value={formData.companyId}
-                      onValueChange={(value) => {
-                        setFormData({ ...formData, companyId: value, departmentId: '' });
-                        fetchDepartmentsByCompany(value);
-                      }}
-                      disabled={loadingCompanies}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder={loadingCompanies ? "Loading companies..." : "Select Company"} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {(companies || []).map(comp => (
-                          <SelectItem key={comp.id} value={comp.id.toString()}>
-                            {comp.companyName || comp.name || 'Unnamed Company'}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="department">Department *</Label>
-                    <Select
-                      value={formData.departmentId}
-                      onValueChange={v => setFormData({ ...formData, departmentId: v })}
-                      disabled={!formData.companyId || loadingDepartments}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder={
-                          !formData.companyId ? "Select Company first" : 
-                          loadingDepartments ? "Loading departments..." :
-                          "Select Department"
-                        } />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {departments.length === 0 && formData.companyId && !loadingDepartments ? (
-                          <SelectItem value="no-departments" disabled className="text-muted-foreground italic">
-                            No departments exist
-                          </SelectItem>
-                        ) : (
-                          dialogDepartments.map(dept => (
-                            <SelectItem key={dept.id} value={dept.id.toString()}>
-                              {dept.departmentName || dept.name || 'Unnamed Department'}
+                  {/* Company & Department */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="company">Company *</Label>
+                      <Select
+                        value={formData.companyId}
+                        onValueChange={(value) => {
+                          setFormData({ ...formData, companyId: value, departmentId: '' });
+                          fetchDepartmentsByCompany(value);
+                        }}
+                        disabled={loadingCompanies}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder={loadingCompanies ? "Loading companies..." : "Select Company"} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {(companies || []).map(comp => (
+                            <SelectItem key={comp.id} value={comp.id.toString()}>
+                              {comp.companyName || comp.name || 'Unnamed Company'}
                             </SelectItem>
-                          ))
-                        )}
-                      </SelectContent>
-                    </Select>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="department">Department *</Label>
+                      <Select
+                        value={formData.departmentId}
+                        onValueChange={v => setFormData({ ...formData, departmentId: v })}
+                        disabled={!formData.companyId || loadingDepartments}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder={
+                            !formData.companyId ? "Select Company first" : 
+                            loadingDepartments ? "Loading departments..." :
+                            "Select Department"
+                          } />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {departments.length === 0 && formData.companyId && !loadingDepartments ? (
+                            <SelectItem value="no-departments" disabled className="text-muted-foreground italic">
+                              No departments exist
+                            </SelectItem>
+                          ) : (
+                            dialogDepartments.map(dept => (
+                              <SelectItem key={dept.id} value={dept.id.toString()}>
+                                {dept.departmentName || dept.name || 'Unnamed Department'}
+                              </SelectItem>
+                            ))
+                          )}
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
-                </div>
 
-                {/* Role & Designation */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="role">Role *</Label>
-                    <Select
-                      value={formData.role}
-                      onValueChange={v => setFormData({ ...formData, role: v })} // Remove UserRole casting
-                      disabled={loadingRoles}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder={loadingRoles ? "Loading roles..." : "Select Role"} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {roles.length === 0 && !loadingRoles ? (
-                          <SelectItem value="no-roles" disabled className="text-muted-foreground italic">
-                            No roles available
-                          </SelectItem>
-                        ) : (
-                          roles.map(role => (
-                            <SelectItem key={role.id} value={role.id.toString()}>{role.name}</SelectItem>
-                          ))
-                        )}
-                      </SelectContent>
-                    </Select>
+                  {/* Role & Designation */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="role">Role *</Label>
+                      <Select
+                        value={formData.role}
+                        onValueChange={v => setFormData({ ...formData, role: v })}
+                        disabled={loadingRoles}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder={loadingRoles ? "Loading roles..." : "Select Role"} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {roles.length === 0 && !loadingRoles ? (
+                            <SelectItem value="no-roles" disabled className="text-muted-foreground italic">
+                              No roles available
+                            </SelectItem>
+                          ) : (
+                            roles.map(role => (
+                              <SelectItem key={role.id} value={role.id.toString()}>{role.name}</SelectItem>
+                            ))
+                          )}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="designation">Designation</Label>
+                      <Select
+                        value={formData.designation}
+                        onValueChange={v => setFormData({ ...formData, designation: v })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select Designation" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {designationsList.map(des => (
+                            <SelectItem key={des.id} value={des.name}>{des.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="designation">Designation</Label>
-                    <Select
-                      value={formData.designation}
-                      onValueChange={v => setFormData({ ...formData, designation: v })}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select Designation" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {designationsList.map(des => (
-                          <SelectItem key={des.id} value={des.name}>{des.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
 
-                {/* Dates & Experience */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="joinDate">Join Date *</Label>
-                    <Input
-                      id="joinDate"
-                      type="date"
-                      value={formData.joinDate}
-                      onChange={e => setFormData({ ...formData, joinDate: e.target.value })}
-                    />
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Current: {calculateCurrentExperience(formData.joinDate)} years
-                    </p>
+                  {/* Dates & Experience */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="joinDate">Join Date *</Label>
+                      <Input
+                        id="joinDate"
+                        type="date"
+                        value={formData.joinDate}
+                        onChange={e => setFormData({ ...formData, joinDate: e.target.value })}
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Current: {calculateCurrentExperience(formData.joinDate)} years
+                      </p>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="prevExp">Previous Exp (Years)</Label>
+                      <Input
+                        id="prevExp"
+                        type="number"
+                        min="0"
+                        value={formData.previousExperience}
+                        onChange={e => setFormData({ ...formData, previousExperience: parseInt(e.target.value) || 0 })}
+                      />
+                    </div>
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="prevExp">Previous Exp (Years)</Label>
-                    <Input
-                      id="prevExp"
-                      type="number"
-                      min="0"
-                      value={formData.previousExperience}
-                      onChange={e => setFormData({ ...formData, previousExperience: parseInt(e.target.value) || 0 })}
-                    />
-                  </div>
-                </div>
 
-                <div className="flex justify-end gap-2 mt-6">
-                  <Button variant="outline" onClick={() => setIsDialogOpen(false)} disabled={savingEmployee}>Cancel</Button>
-                  <Button onClick={handleSave} disabled={savingEmployee}>
-                    {savingEmployee ? (
-                      <>
-                        <span className="mr-2">Saving...</span>
-                        <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
-                      </>
-                    ) : (
-                      `${editingUser ? 'Update' : 'Create'} Employee`
-                    )}
-                  </Button>
+                  <div className="flex justify-end gap-2 mt-6">
+                    <Button variant="outline" onClick={() => setIsDialogOpen(false)} disabled={savingEmployee}>Cancel</Button>
+                    <Button onClick={handleSave} disabled={savingEmployee}>
+                      {savingEmployee ? (
+                        <>
+                          <span className="mr-2">Saving...</span>
+                          <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                        </>
+                      ) : (
+                        `${editingUser ? 'Update' : 'Create'} Employee`
+                      )}
+                    </Button>
+                  </div>
                 </div>
-              </div>
-            </DialogContent>
-          </Dialog>
+              </DialogContent>
+            </Dialog>
           </div>
         </div>
 
