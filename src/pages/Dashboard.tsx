@@ -1,3 +1,5 @@
+
+
 import React from 'react';
 import { DashboardLayout } from '@/components/templates/DashboardLayout/DashboardLayout';
 import { useAuth } from '@/context/AuthContext';
@@ -13,8 +15,27 @@ export const Dashboard: React.FC = () => {
   const { currentUser } = useAuth();
   const navigate = useNavigate();
 
+  // Add null check for currentUser
+  if (!currentUser) {
+    return (
+      <DashboardLayout title="Dashboard" subtitle="Loading...">
+        <div className="flex items-center justify-center h-64">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+            <p className="mt-2 text-muted-foreground">Loading dashboard...</p>
+          </div>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
   const userBalances = leaveBalances.filter(b => b.userId === currentUser.id);
   const userRequests = leaveRequests.filter(r => r.employeeId === currentUser.id);
+
+  // Debug logging to help troubleshoot data issues
+  console.log('Current user ID:', currentUser.id);
+  console.log('User balances found:', userBalances.length);
+  console.log('User requests found:', userRequests.length);
 
   // For managers/admins - get pending approvals
   const pendingApprovals = leaveRequests.filter(r => {
@@ -23,6 +44,12 @@ export const Dashboard: React.FC = () => {
       step => step.approverId === currentUser.id && step.status === 'pending'
     );
   });
+
+  // Debug logging for pending approvals
+  console.log('Current user role:', currentUser.role);
+  console.log('Pending approvals found:', pendingApprovals.length);
+  console.log('All pending requests:', leaveRequests.filter(r => r.status === 'pending'));
+  console.log('Approval steps for current user:', leaveRequests.flatMap(r => r.approvalSteps).filter(step => step.approverId === currentUser.id));
 
   const currentMonth = new Date().getMonth();
   const currentYear = new Date().getFullYear();
@@ -95,9 +122,17 @@ export const Dashboard: React.FC = () => {
             </Button>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {userBalances.map(balance => (
-              <LeaveBalanceCard key={balance.id} balance={balance} />
-            ))}
+            {userBalances.length > 0 ? (
+              userBalances.map(balance => (
+                <LeaveBalanceCard key={balance.id} balance={balance} />
+              ))
+            ) : (
+              <div className="col-span-3 text-center py-8 bg-card border border-border rounded-xl">
+                <CalendarDays className="w-8 h-8 mx-auto text-muted-foreground mb-2" />
+                <p className="text-muted-foreground">No leave balances available</p>
+                <p className="text-sm text-muted-foreground mt-1">Contact HR to set up your leave policies</p>
+              </div>
+            )}
           </div>
         </div>
 
