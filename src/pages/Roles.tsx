@@ -22,7 +22,7 @@ import {
 import { Plus, Pencil, Trash2, Search } from "lucide-react";
 import { toast } from "sonner";
 import { Role } from "@/data/roles";
-import { getRoles, createRole, updateRole as updateRoleAPI, deleteRole as deleteRoleAPI } from "@/components/services/roleService";
+import { roleService } from "@/components/services/roleService";
 
 export const Roles: React.FC = () => {
 
@@ -48,7 +48,7 @@ export const Roles: React.FC = () => {
   const fetchRoles = async (page: number, size: number) => {
     try {
       // Backend uses 0-based indexing, so subtract 1 from UI page
-      const res = await getRoles(page - 1, size);
+      const res = await roleService.getRoles(page - 1, size);
       console.log("Full API Response:", res);
 
       // API structure: res is ResponseWrapper, res.data is RolePaginationDto
@@ -104,11 +104,11 @@ export const Roles: React.FC = () => {
     try {
       if (editingRole) {
         // Update existing role
-        await updateRoleAPI(Number(editingRole.id), { name: formData.name });
+        await roleService.updateRole(Number(editingRole.id), { name: formData.name });
         toast.success("Role updated successfully");
       } else {
         // Create new role
-        await createRole({ name: formData.name });
+        await roleService.createRole({ name: formData.name });
         toast.success("Role added successfully");
       }
 
@@ -128,7 +128,7 @@ export const Roles: React.FC = () => {
       window.confirm(`Are you sure you want to delete the role "${role.name}"?`)
     ) {
       try {
-        await deleteRoleAPI(Number(role.id));
+        await roleService.deleteRole(Number(role.id));
         toast.success("Role deleted successfully");
         // Refresh the roles list
         await fetchRoles(page, size);
