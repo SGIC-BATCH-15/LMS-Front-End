@@ -9,6 +9,8 @@ import { KeyRound, ArrowLeft, Loader2, Eye, EyeOff } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { InputOTP, InputOTPGroup, InputOTPSlot, InputOTPSeparator } from "@/components/ui/input-otp";
+import axios from 'axios';
+import { API_BASE_URL } from '@/constants/Api';
 
 export const ForgotPassword: React.FC = () => {
     const [step, setStep] = useState<'EMAIL' | 'OTP' | 'RESET' | 'SUCCESS'>('EMAIL');
@@ -21,49 +23,55 @@ export const ForgotPassword: React.FC = () => {
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState('');
+    const navigate = useNavigate();
 
-    const handleEmailSubmit = (e: React.FormEvent) => {
+    const handleEmailSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setError('');
         setIsLoading(true);
 
-        // Generate random 6-digit OTP
-        const code = Math.floor(100000 + Math.random() * 900000).toString();
-        setGeneratedOtp(code);
+        try{
+            await axios.post(`${API_BASE_URL}/auth/otp`, 
+                {email:email.trim()});
 
-        // Mock API call for sending OTP
-        setTimeout(() => {
+                toast.success('OTP code sent to your email Successfully',{
+                    description: 'Please check your email for the verification code.',
+                });
+                setStep('OTP');
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        } catch (err:any) {
+            const message = err.response?.data?.message || 'Failed to send OTP code. Please try again.';
+            setError(message);
+            toast.error(message);
+        } finally {
             setIsLoading(false);
-            setStep('OTP');
-            setStep('OTP');
-            // Mock sending email
-            console.log('----------------------------------------');
-            console.log(`[DEV MODE] OTP SENT TO ${email}: ${code}`);
-            console.log('----------------------------------------');
+        }
+    };
 
-            toast.success(`OTP sent to ${email}`, {
-                description: 'Please check your inbox (and spam folder)',
+    const handleOtpSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setError('');
+        setIsLoading(true);
+
+        try{
+            await axios.post(`${API_BASE_URL}/auth/otp/verify`,{
+                email:email.trim(),
+                otp:otp
             });
-        }, 1500);
-    };
 
-    const handleOtpSubmit = (e: React.FormEvent) => {
-        e.preventDefault();
-        setError('');
-        setIsLoading(true);
-
-        setTimeout(() => {
+            toast.success('OTP verified successfully');
+            setStep('RESET');
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        } catch (err:any) {
+            const message = err.response?.data?.message || 'Invalid OTP code. Please try again.';
+            setError(message);
+            toast.error(message);
+        } finally {
             setIsLoading(false);
-            if (otp === generatedOtp) {
-                setStep('RESET');
-                toast.success('OTP verified successfully');
-            } else {
-                setError('Invalid OTP code. Please try again.');
-            }
-        }, 1000);
+        }
     };
 
-    const handleResetSubmit = (e: React.FormEvent) => {
+    const handleResetSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setError('');
 
@@ -72,18 +80,30 @@ export const ForgotPassword: React.FC = () => {
             return;
         }
 
-        if (newPassword.length < 8) {
-            setError('Password must be at least 8 characters');
+        if (newPassword.length < 6) { // Matches backend validation in AuthenticationService
+            setError('Password length must be at least 6 characters');
             return;
         }
 
         setIsLoading(true);
-        // Mock API call for password reset
-        setTimeout(() => {
-            setIsLoading(false);
-            setStep('SUCCESS');
+
+        try {
+            await axios.put(`${API_BASE_URL}/auth/update`, {
+                email: email.trim(),
+                newPassword: newPassword,
+                confirmPassword: confirmPassword
+            });
+
             toast.success('Password reset successfully');
-        }, 1500);
+            setStep('SUCCESS');
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        } catch (err: any) {
+            const message = err.response?.data?.message || 'Failed to reset password. Please try again.';
+            setError(message);
+            toast.error(message);
+        } finally {
+            setIsLoading(false);
+        }
     };
 
     const renderStep = () => {
@@ -108,6 +128,7 @@ export const ForgotPassword: React.FC = () => {
                         </Button>
                     </form>
                 );
+
             case 'OTP':
                 return (
                     <form onSubmit={handleOtpSubmit} className="space-y-4">
@@ -121,39 +142,43 @@ export const ForgotPassword: React.FC = () => {
                                 disabled={isLoading}
                             >
                                 <div className="flex gap-2">
-                                    <InputOTPGroup>
-                                        <InputOTPSlot index={0} />
-                                    </InputOTPGroup>
-                                    <InputOTPGroup>
-                                        <InputOTPSlot index={1} />
-                                    </InputOTPGroup>
-                                    <InputOTPGroup>
-                                        <InputOTPSlot index={2} />
-                                    </InputOTPGroup>
-                                    <InputOTPGroup>
-                                        <InputOTPSlot index={3} />
-                                    </InputOTPGroup>
-                                    <InputOTPGroup>
-                                        <InputOTPSlot index={4} />
-                                    </InputOTPGroup>
-                                    <InputOTPGroup>
-                                        <InputOTPSlot index={5} />
-                                    </InputOTPGroup>
+                                    <InputOTPGroup><InputOTPSlot index={0} /></InputOTPGroup>
+                                    <InputOTPGroup><InputOTPSlot index={1} /></InputOTPGroup>
+                                    <InputOTPGroup><InputOTPSlot index={2} /></InputOTPGroup>
+                                    <InputOTPGroup><InputOTPSlot index={3} /></InputOTPGroup>
+                                    <InputOTPGroup><InputOTPSlot index={4} /></InputOTPGroup>
+                                    <InputOTPGroup><InputOTPSlot index={5} /></InputOTPGroup>
                                 </div>
                             </InputOTP>
 
                             <p className="text-xs text-muted-foreground text-center">
-                                Please enter the 6-digit code shown in the notification.
+                                Code sent to <span className="font-medium text-foreground">{email}</span>
                             </p>
                         </div>
-                        <Button type="submit" className="w-full" disabled={isLoading || otp.length !== 6} size="lg">
+
+                        <Button 
+                            type="submit" 
+                            className="w-full" 
+                            disabled={isLoading || otp.length !== 6} 
+                            size="lg"
+                        >
                             {isLoading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Verifying...</> : 'Verify Code'}
                         </Button>
-                        <Button variant="link" type="button" className="w-full" onClick={() => setStep('EMAIL')}>
+
+                        <Button 
+                            variant="link" 
+                            type="button" 
+                            className="w-full" 
+                            onClick={() => {
+                                setStep('EMAIL');
+                                setOtp('');
+                            }}
+                        >
                             Change Email
                         </Button>
                     </form>
                 );
+
             case 'RESET':
                 return (
                     <form onSubmit={handleResetSubmit} className="space-y-4">
@@ -176,14 +201,11 @@ export const ForgotPassword: React.FC = () => {
                                     className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
                                     onClick={() => setShowNewPassword(!showNewPassword)}
                                 >
-                                    {showNewPassword ? (
-                                        <EyeOff className="h-4 w-4 text-muted-foreground" />
-                                    ) : (
-                                        <Eye className="h-4 w-4 text-muted-foreground" />
-                                    )}
+                                    {showNewPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                                 </Button>
                             </div>
                         </div>
+
                         <div className="space-y-2">
                             <Label htmlFor="confirmPassword">Confirm Password</Label>
                             <div className="relative">
@@ -203,19 +225,17 @@ export const ForgotPassword: React.FC = () => {
                                     className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
                                     onClick={() => setShowConfirmPassword(!showConfirmPassword)}
                                 >
-                                    {showConfirmPassword ? (
-                                        <EyeOff className="h-4 w-4 text-muted-foreground" />
-                                    ) : (
-                                        <Eye className="h-4 w-4 text-muted-foreground" />
-                                    )}
+                                    {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                                 </Button>
                             </div>
                         </div>
+
                         <Button type="submit" className="w-full" disabled={isLoading} size="lg">
                             {isLoading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Resetting...</> : 'Reset Password'}
                         </Button>
                     </form>
                 );
+
             case 'SUCCESS':
                 return (
                     <div className="text-center space-y-4">
@@ -224,11 +244,13 @@ export const ForgotPassword: React.FC = () => {
                                 Your password has been successfully reset. You can now login with your new password.
                             </AlertDescription>
                         </Alert>
-                        <Link to="/login">
-                            <Button className="w-full" size="lg">
-                                Proceed to Login
-                            </Button>
-                        </Link>
+                        <Button 
+                            className="w-full" 
+                            size="lg"
+                            onClick={() => navigate('/login')}
+                        >
+                            Proceed to Login
+                        </Button>
                     </div>
                 );
         }
