@@ -71,7 +71,11 @@ export const Employees: React.FC = () => {
       return;
     }
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
     
+=======
+
+>>>>>>> Stashed changes
 =======
 
 >>>>>>> Stashed changes
@@ -80,7 +84,11 @@ export const Employees: React.FC = () => {
       const departmentsData = await departmentService.getDepartmentsByCompanyId(companyId);
       setDepartments(departmentsData);
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
       
+=======
+
+>>>>>>> Stashed changes
 =======
 
 >>>>>>> Stashed changes
@@ -121,7 +129,11 @@ export const Employees: React.FC = () => {
     const fetchCompanies = async () => {
       console.log('🚀 Starting to fetch companies...');
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
       
+=======
+
+>>>>>>> Stashed changes
 =======
 
 >>>>>>> Stashed changes
@@ -134,7 +146,11 @@ export const Employees: React.FC = () => {
         return;
       }
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
       
+=======
+
+>>>>>>> Stashed changes
 =======
 
 >>>>>>> Stashed changes
@@ -145,7 +161,11 @@ export const Employees: React.FC = () => {
         const companiesData = await companyService.getAllCompanies();
         console.log('✅ Received companies data:', companiesData);
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
         
+=======
+
+>>>>>>> Stashed changes
 =======
 
 >>>>>>> Stashed changes
@@ -197,7 +217,11 @@ export const Employees: React.FC = () => {
         const employeesData = await employeeService.getEmployeesByCompany(parseInt(filterCompany));
         console.log('✅ Received employees data:', employeesData);
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
         
+=======
+
+>>>>>>> Stashed changes
 =======
 
 >>>>>>> Stashed changes
@@ -213,7 +237,11 @@ export const Employees: React.FC = () => {
               }
             }
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
             
+=======
+
+>>>>>>> Stashed changes
 =======
 
 >>>>>>> Stashed changes
@@ -235,7 +263,11 @@ export const Employees: React.FC = () => {
             };
           });
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
           
+=======
+
+>>>>>>> Stashed changes
 =======
 
 >>>>>>> Stashed changes
@@ -259,7 +291,11 @@ export const Employees: React.FC = () => {
     const fetchRoles = async () => {
       console.log('🚀 Starting to fetch roles...');
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
       
+=======
+
+>>>>>>> Stashed changes
 =======
 
 >>>>>>> Stashed changes
@@ -272,7 +308,11 @@ export const Employees: React.FC = () => {
         return;
       }
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
       
+=======
+
+>>>>>>> Stashed changes
 =======
 
 >>>>>>> Stashed changes
@@ -284,7 +324,11 @@ export const Employees: React.FC = () => {
         console.log('✅ Received roles data:', rolesData);
         console.log('🔢 Roles array length:', rolesData?.length);
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
         
+=======
+
+>>>>>>> Stashed changes
 =======
 
 >>>>>>> Stashed changes
@@ -341,7 +385,11 @@ export const Employees: React.FC = () => {
       // Get company from user's companyId directly
       const companyId = user.companyId || '';
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
       
+=======
+
+>>>>>>> Stashed changes
 =======
 
 >>>>>>> Stashed changes
@@ -428,6 +476,14 @@ export const Employees: React.FC = () => {
       return;
     }
 
+    // Additional validation for role ID
+    const roleId = parseInt(formData.role);
+    if (isNaN(roleId) || roleId <= 0) {
+      console.log('❌ Invalid role ID:', formData.role, 'Parsed:', roleId);
+      toast.error('Please select a valid role');
+      return;
+    }
+
     // Password validation for new users
     if (!editingUser && !formData.password) {
       toast.error('Password is required for new employees');
@@ -445,6 +501,7 @@ export const Employees: React.FC = () => {
         console.log('📝 Preparing employee data for backend update...');
         console.log('🔍 Editing user ID:', editingUser.id);
         console.log('🔍 Form data:', formData);
+<<<<<<< Updated upstream
 <<<<<<< Updated upstream
         
         const roleId = parseInt(formData.role);
@@ -478,6 +535,9 @@ export const Employees: React.FC = () => {
         
 =======
 
+=======
+
+>>>>>>> Stashed changes
         const roleId = parseInt(formData.role);
         if (isNaN(roleId) || roleId <= 0) {
           throw new Error('Invalid role selection');
@@ -507,6 +567,9 @@ export const Employees: React.FC = () => {
         const selectedRole = roles.find(role => role.id.toString() === formData.role);
         const roleName = selectedRole ? selectedRole.name.toLowerCase() as UserRole : 'employee' as UserRole;
 
+<<<<<<< Updated upstream
+>>>>>>> Stashed changes
+=======
 >>>>>>> Stashed changes
         const updatedUser: User = {
           ...editingUser,
@@ -528,7 +591,11 @@ export const Employees: React.FC = () => {
         console.log('➕ Updating employee in local UI state');
         setUsers(users.map(u => u.id === editingUser.id ? updatedUser : u));
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
         
+=======
+
+>>>>>>> Stashed changes
 =======
 
 >>>>>>> Stashed changes
@@ -551,6 +618,7 @@ export const Employees: React.FC = () => {
         console.log('🔍 Parsed role ID:', parseInt(formData.role), 'IsNaN:', isNaN(parseInt(formData.role)));
         console.log('🔍 Available roles:', roles.map(r => ({ id: r.id, name: r.name, type: typeof r.id })));
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
         
         const roleId = parseInt(formData.role);
         if (isNaN(roleId) || roleId <= 0) {
@@ -596,6 +664,26 @@ export const Employees: React.FC = () => {
           previousExperience: formData.previousExperience,
         };
 
+=======
+
+        const roleId = parseInt(formData.role);
+        if (isNaN(roleId) || roleId <= 0) {
+          throw new Error('Invalid role selection');
+        }
+
+        const employeeData: AddEmployeeRequest = {
+          firstName: formData.firstName.trim(),
+          lastName: formData.lastName.trim(),
+          email: formData.email.trim(),
+          password: formData.password,
+          companyId: parseInt(formData.companyId),
+          departmentId: parseInt(formData.departmentId),
+          roleIds: [roleId], // Matches backend DTO: List<Long> roleIds
+          joinDate: formData.joinDate,
+          previousExperience: formData.previousExperience,
+        };
+
+>>>>>>> Stashed changes
         console.log('📤 Sending employee data to backend:', employeeData);
         console.log('📤 Final JSON payload:', JSON.stringify(employeeData, null, 2));
 
@@ -604,13 +692,20 @@ export const Employees: React.FC = () => {
         console.log('✅ Employee saved successfully to database:', response);
         toast.success('Employee added successfully to the database!');
 
+<<<<<<< Updated upstream
+>>>>>>> Stashed changes
+=======
 >>>>>>> Stashed changes
         // Add to local state for immediate UI update
         // Find the role name from the roles array using the roleId
         const selectedRole = roles.find(role => role.id.toString() === formData.role);
         const roleName = selectedRole ? selectedRole.name.toLowerCase() as UserRole : 'employee' as UserRole;
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
         
+=======
+
+>>>>>>> Stashed changes
 =======
 
 >>>>>>> Stashed changes
@@ -629,15 +724,21 @@ export const Employees: React.FC = () => {
           previousExperience: formData.previousExperience,
         };
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
         
         console.log('➕ Adding employee to local UI state for immediate display');
         setUsers([...users, newUser]);
         
 =======
+=======
+>>>>>>> Stashed changes
 
         console.log('➕ Adding employee to local UI state for immediate display');
         setUsers([...users, newUser]);
 
+<<<<<<< Updated upstream
+>>>>>>> Stashed changes
+=======
 >>>>>>> Stashed changes
       } catch (error) {
         console.error('❌ Failed to save employee to database:', error);
@@ -658,6 +759,7 @@ export const Employees: React.FC = () => {
       try {
         await employeeService.deleteEmployee(userId);
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
         
         console.log('✅ Employee deleted successfully from database');
         toast.success('Employee deleted successfully from the database!');
@@ -667,6 +769,8 @@ export const Employees: React.FC = () => {
         setBalances(prev => prev.filter(b => b.userId !== userId));
         
 =======
+=======
+>>>>>>> Stashed changes
 
         console.log('✅ Employee deleted successfully from database');
         toast.success('Employee deleted successfully from the database!');
@@ -675,6 +779,9 @@ export const Employees: React.FC = () => {
         setUsers(users.filter(u => u.id !== userId));
         setBalances(prev => prev.filter(b => b.userId !== userId));
 
+<<<<<<< Updated upstream
+>>>>>>> Stashed changes
+=======
 >>>>>>> Stashed changes
       } catch (error) {
         console.error('❌ Failed to delete employee from database:', error);
@@ -727,7 +834,11 @@ export const Employees: React.FC = () => {
                     </SelectItem>
                   ))
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
                 )}\n              </SelectContent>
+=======
+                )}            </SelectContent>
+>>>>>>> Stashed changes
 =======
                 )}            </SelectContent>
 >>>>>>> Stashed changes
@@ -854,7 +965,11 @@ export const Employees: React.FC = () => {
                       <SelectTrigger>
                         <SelectValue placeholder={
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
                           !formData.companyId ? "Select Company first" : 
+=======
+                          !formData.companyId ? "Select Company first" :
+>>>>>>> Stashed changes
 =======
                           !formData.companyId ? "Select Company first" :
 >>>>>>> Stashed changes
