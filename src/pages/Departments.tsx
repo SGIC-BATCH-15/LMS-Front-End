@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Building2, Plus, Pencil, Trash2, Search } from 'lucide-react';
 import { Department } from '@/types';
 import { useToast } from '@/hooks/use-toast';
-import { getAllDepartments, addDepartment, updateDepartment, deleteDepartment, getDepartmentById, getAllCompanies, Company } from '@/components/services/departmentService';
+import { departmentService, Company } from '@/components/services/departmentService';
 import { useAuth } from '@/context/AuthContext';
 
 import {
@@ -37,11 +37,13 @@ export const Departments: React.FC = () => {
     // Fetch Companies
     const fetchCompanies = async () => {
         try {
-            const data = await getAllCompanies();
+            const data = await departmentService.getAllCompanies();
             // Backend returns Page, we need content
             const content = data.content || [];
-            setCompanies(content);
-            return content;
+            // Filter to only show company with ID 1
+            const filteredCompanies = content.filter((company: Company) => company.id === '1' || company.id === 1);
+            setCompanies(filteredCompanies);
+            return filteredCompanies;
         } catch (error) {
             console.error("Failed to fetch companies", error);
             toast({
@@ -59,7 +61,7 @@ export const Departments: React.FC = () => {
             let allDepts: Department[] = [];
             for (const company of companiesList) {
                 // Fetch all departments for this company (chunked by 1000 to get all)
-                const data = await getAllDepartments(company.id.toString(), 0, 1000);
+                const data = await departmentService.getAllDepartments(company.id.toString(), 0, 1000);
                 const content = data.content || [];
                 allDepts = [...allDepts, ...content];
             }
@@ -113,7 +115,7 @@ export const Departments: React.FC = () => {
 
             // Fetch fresh details
             try {
-                const fullDept = await getDepartmentById(dept.id);
+                const fullDept = await departmentService.getDepartmentById(dept.id);
                 setEditingDept(fullDept);
                 setFormData({
                     name: fullDept.name,
@@ -141,13 +143,13 @@ export const Departments: React.FC = () => {
 
         try {
             if (editingDept) {
-                await updateDepartment(editingDept.id, formData);
+                await departmentService.updateDepartment(editingDept.id, formData);
                 toast({
                     title: 'Success',
                     description: 'Department updated successfully',
                 });
             } else {
-                await addDepartment(formData);
+                await departmentService.addDepartment(formData);
                 toast({
                     title: 'Success',
                     description: 'Department created successfully',
@@ -169,7 +171,7 @@ export const Departments: React.FC = () => {
     const handleDelete = async (id: string) => {
         if (window.confirm('Are you sure you want to delete this department?')) {
             try {
-                await deleteDepartment(id);
+                await departmentService.deleteDepartment(id);
                 toast({
                     title: 'Success',
                     description: 'Department deleted successfully',
