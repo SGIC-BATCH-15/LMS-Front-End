@@ -1,6 +1,7 @@
 import apiClient from './apiClient';
 
 export interface Department {
+  departmentName: ReactNode;
   id: number;
   name: string;
   company_id: number;
