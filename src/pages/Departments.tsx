@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { DashboardLayout } from '@/components/templates/DashboardLayout/DashboardLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -8,10 +8,11 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Building2, Plus, Pencil, Trash2, Search } from 'lucide-react';
-import { departments as initialDepartments } from '@/data/mockData';
-import { companies } from '@/data/companies';
 import { Department } from '@/types';
 import { useToast } from '@/hooks/use-toast';
+import { getAllDepartments, addDepartment, updateDepartment, deleteDepartment, getDepartmentById, getAllCompanies, Company } from '@/components/services/departmentService';
+import { useAuth } from '@/context/AuthContext';
+
 import {
     Pagination,
     PaginationContent,
@@ -22,7 +23,9 @@ import {
 } from "@/components/ui/pagination";
 
 export const Departments: React.FC = () => {
-    const [departments, setDepartments] = useState<Department[]>(initialDepartments);
+    const { currentUser } = useAuth();
+    const [departments, setDepartments] = useState<Department[]>([]);
+    const [companies, setCompanies] = useState<Company[]>([]);
     const [searchTerm, setSearchTerm] = useState('');
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [editingDept, setEditingDept] = useState<Department | null>(null);
@@ -31,34 +34,102 @@ export const Departments: React.FC = () => {
     const itemsPerPage = 5;
     const { toast } = useToast();
 
+    // Fetch Companies
+    const fetchCompanies = async () => {
+        try {
+            const data = await getAllCompanies();
+            // Backend returns Page, we need content
+            const content = data.content || [];
+            setCompanies(content);
+            return content;
+        } catch (error) {
+            console.error("Failed to fetch companies", error);
+            toast({
+                title: 'Error',
+                description: 'Failed to load companies',
+                variant: 'destructive',
+            });
+            return [];
+        }
+    };
+
+    // Fetch Departments for ALL companies
+    const fetchDepartments = async (companiesList: Company[]) => {
+        try {
+            let allDepts: Department[] = [];
+            for (const company of companiesList) {
+                // Fetch all departments for this company (chunked by 1000 to get all)
+                const data = await getAllDepartments(company.id.toString(), 0, 1000);
+                const content = data.content || [];
+                allDepts = [...allDepts, ...content];
+            }
+            setDepartments(allDepts);
+        } catch (error) {
+            console.error("Failed to fetch departments", error);
+            toast({
+                title: 'Error',
+                description: 'Failed to load departments',
+                variant: 'destructive',
+            });
+        }
+    };
+
+    // Initial Load
+    useEffect(() => {
+        const init = async () => {
+            const comps = await fetchCompanies();
+            if (comps.length > 0) {
+                await fetchDepartments(comps);
+            }
+        };
+        init();
+    }, []);
+
+    // Filter Logic
     const filteredDepartments = departments.filter(dept =>
         dept.name.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
-    const totalPages = Math.ceil(filteredDepartments.length / itemsPerPage);
-    const indexOfLastItem = currentPage * itemsPerPage;
-    const indexOfFirstItem = indexOfLastItem - itemsPerPage;
-    const currentItems = filteredDepartments.slice(indexOfFirstItem, indexOfLastItem);
+    // Client-Side Pagination Logic
+    const totalPages = Math.max(1, Math.ceil(filteredDepartments.length / itemsPerPage));
+    const currentItems = filteredDepartments.slice(
+        (currentPage - 1) * itemsPerPage,
+        currentPage * itemsPerPage
+    );
 
-    React.useEffect(() => {
+    // Reset page on search
+    useEffect(() => {
         setCurrentPage(1);
     }, [searchTerm]);
 
-    const handleOpenDialog = (dept?: Department) => {
+    const handleOpenDialog = async (dept?: Department) => {
         if (dept) {
             setEditingDept(dept);
             setFormData({
                 name: dept.name,
-                companyId: (dept as any).companyId || ''
+                companyId: dept.companyId || ''
             });
+            setIsDialogOpen(true);
+
+            // Fetch fresh details
+            try {
+                const fullDept = await getDepartmentById(dept.id);
+                setEditingDept(fullDept);
+                setFormData({
+                    name: fullDept.name,
+                    companyId: fullDept.companyId || ''
+                });
+            } catch (error) {
+                console.error("Failed to fetch department details", error);
+            }
         } else {
             setEditingDept(null);
             setFormData({ name: '', companyId: '' });
+            setIsDialogOpen(true);
         }
-        setIsDialogOpen(true);
     };
 
-    const handleSave = () => {
+    const handleSave = async () => {
         if (!formData.name || !formData.companyId) {
             toast({
                 title: 'Error',
@@ -68,39 +139,58 @@ export const Departments: React.FC = () => {
             return;
         }
 
-        if (editingDept) {
-            setDepartments(departments.map(d =>
-                d.id === editingDept.id ? { ...d, ...formData } : d
-            ));
+        try {
+            if (editingDept) {
+                await updateDepartment(editingDept.id, formData);
+                toast({
+                    title: 'Success',
+                    description: 'Department updated successfully',
+                });
+            } else {
+                await addDepartment(formData);
+                toast({
+                    title: 'Success',
+                    description: 'Department created successfully',
+                });
+            }
+            setIsDialogOpen(false);
+            // Refresh Data
+            const comps = await fetchCompanies(); // Re-fetch companies in case new added (unlikely here but good practice)
+            await fetchDepartments(comps);
+        } catch (error) {
             toast({
-                title: 'Success',
-                description: 'Department updated successfully',
-            });
-        } else {
-            const newDept: Department = {
-                id: `dept-${Date.now()}`,
-                ...formData,
-            };
-            setDepartments([...departments, newDept]);
-            toast({
-                title: 'Success',
-                description: 'Department created successfully',
+                title: 'Error',
+                description: 'Failed to save department',
+                variant: 'destructive',
             });
         }
-        setIsDialogOpen(false);
     };
 
-    const handleDelete = (id: string) => {
+    const handleDelete = async (id: string) => {
         if (window.confirm('Are you sure you want to delete this department?')) {
-            setDepartments(departments.filter(d => d.id !== id));
-            toast({
-                title: 'Success',
-                description: 'Department deleted successfully',
-            });
+            try {
+                await deleteDepartment(id);
+                toast({
+                    title: 'Success',
+                    description: 'Department deleted successfully',
+                });
+                // Refresh
+                const comps = companies.length > 0 ? companies : await fetchCompanies();
+                await fetchDepartments(comps);
+            } catch (error) {
+                toast({
+                    title: 'Error',
+                    description: 'Failed to delete department',
+                    variant: 'destructive',
+                });
+            }
         }
     };
 
-
+    const getCompanyName = (id: string) => {
+        const comp = companies.find(c => c.id.toString() === id.toString());
+        return comp ? comp.name : 'Unknown';
+    };
 
     return (
         <DashboardLayout title="Departments" subtitle="Manage organizational departments">
@@ -141,7 +231,7 @@ export const Departments: React.FC = () => {
                                         </SelectTrigger>
                                         <SelectContent>
                                             {companies.map((company) => (
-                                                <SelectItem key={company.id} value={company.id}>
+                                                <SelectItem key={company.id} value={company.id.toString()}>
                                                     {company.name}
                                                 </SelectItem>
                                             ))}
@@ -185,7 +275,7 @@ export const Departments: React.FC = () => {
                             <TableHeader>
                                 <TableRow>
                                     <TableHead>Department Name</TableHead>
-
+                                    <TableHead>Company</TableHead>
                                     <TableHead className="text-right">Actions</TableHead>
                                 </TableRow>
                             </TableHeader>
@@ -193,7 +283,7 @@ export const Departments: React.FC = () => {
                                 {currentItems.map((dept) => (
                                     <TableRow key={dept.id}>
                                         <TableCell className="font-medium">{dept.name}</TableCell>
-
+                                        <TableCell>{getCompanyName(dept.companyId)}</TableCell>
                                         <TableCell className="text-right">
                                             <div className="flex justify-end gap-2">
                                                 <Button
