@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { DashboardLayout } from '@/components/templates/DashboardLayout/DashboardLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -20,9 +20,10 @@ import {
     TableHeader,
     TableRow,
 } from '@/components/ui/table';
-import { Plus, Pencil, Trash2, Search } from 'lucide-react';
+import { Plus, Pencil, Trash2, Search, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { Company as CompanyType, companies as initialCompanies } from '@/data/companies';
+import { Company as CompanyType } from '@/data/companies';
+import { addCompany, getAllCompanies, updateCompany, deleteCompany } from '@/components/services/companyService';
 import {
     Pagination,
     PaginationContent,
@@ -33,11 +34,13 @@ import {
 } from "@/components/ui/pagination";
 
 export const Company: React.FC = () => {
-    const [companies, setCompanies] = useState<CompanyType[]>(initialCompanies);
+    const [companies, setCompanies] = useState<CompanyType[]>([]);
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [editingCompany, setEditingCompany] = useState<CompanyType | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
     const [currentPage, setCurrentPage] = useState(1);
+    const [isLoading, setIsLoading] = useState(false);
+    const [isFetching, setIsFetching] = useState(true);
     const itemsPerPage = 5;
 
     const [formData, setFormData] = useState({
@@ -58,10 +61,28 @@ export const Company: React.FC = () => {
     const indexOfFirstItem = indexOfLastItem - itemsPerPage;
     const currentItems = filteredCompanies.slice(indexOfFirstItem, indexOfLastItem);
 
+    // Fetch companies on component mount
+    useEffect(() => {
+        fetchCompanies();
+    }, []);
+
     // Reset to page 1 when search changes
-    React.useEffect(() => {
+    useEffect(() => {
         setCurrentPage(1);
     }, [searchTerm]);
+
+    const fetchCompanies = async () => {
+        try {
+            setIsFetching(true);
+            const data = await getAllCompanies();
+            setCompanies(data);
+        } catch (error: any) {
+            console.error('Failed to fetch companies:', error);
+            toast.error(error?.response?.data?.message || 'Failed to fetch companies');
+        } finally {
+            setIsFetching(false);
+        }
+    };
 
     const handleOpenDialog = (company?: CompanyType) => {
         if (company) {
@@ -95,37 +116,81 @@ export const Company: React.FC = () => {
         });
     };
 
-    const handleSave = () => {
+    const handleSave = async () => {
         if (!formData.name || !formData.address || !formData.email || !formData.phoneNumber) {
             toast.error('Please fill in all fields');
             return;
         }
 
-        if (editingCompany) {
-            // Update existing company
-            setCompanies(companies.map(c =>
-                c.id === editingCompany.id
-                    ? { ...c, ...formData }
-                    : c
-            ));
-            toast.success('Company updated successfully');
-        } else {
-            // Add new company
-            const newCompany: CompanyType = {
-                id: Date.now().toString(),
-                ...formData,
-            };
-            setCompanies([...companies, newCompany]);
-            toast.success('Company added successfully');
-        }
+        try {
+            setIsLoading(true);
+            
+            console.log('Sending company data:', formData);
 
-        handleCloseDialog();
+            if (editingCompany) {
+                // Update existing company
+                await updateCompany(editingCompany.id, formData);
+                toast.success('Company updated successfully');
+            } else {
+                // Add new company
+                await addCompany(formData);
+                toast.success('Company added successfully');
+            }
+
+            // Refresh the companies list
+            await fetchCompanies();
+            handleCloseDialog();
+        } catch (error: any) {
+            console.error('Failed to save company:', error);
+            console.error('Error response:', error?.response);
+            console.error('Error data:', error?.response?.data);
+            
+            const errorMessage = error?.response?.data?.message 
+                || error?.response?.data?.error 
+                || error?.message 
+                || 'Failed to save company';
+            
+            toast.error(errorMessage);
+        } finally {
+            setIsLoading(false);
+        }
     };
 
-    const handleDelete = (id: string) => {
-        if (window.confirm('Are you sure you want to delete this company?')) {
-            setCompanies(companies.filter(c => c.id !== id));
-            toast.success('Company deleted successfully');
+    const handleDelete = async (id: string) => {
+        const confirmed = window.confirm(
+            'Are you sure you want to delete this company?\n\n' +
+            'Note: Companies with linked records (employees, departments, etc.) cannot be deleted. ' +
+            'You must first remove or reassign all related records.'
+        );
+        
+        if (confirmed) {
+            try {
+                console.log('Attempting to delete company with ID:', id);
+                await deleteCompany(id);
+                toast.success('Company deleted successfully');
+                // Refresh the companies list
+                await fetchCompanies();
+            } catch (error: any) {
+                console.error('Failed to delete company:', error);
+                console.error('Delete error response:', error?.response);
+                console.error('Delete error data:', error?.response?.data);
+                
+                const backendMessage = error?.response?.data?.statusMessage
+                    || error?.response?.data?.message 
+                    || error?.response?.data?.error 
+                    || error?.message;
+                
+                let userMessage = '';
+                
+                if (backendMessage?.toLowerCase().includes('linked') || 
+                    backendMessage?.toLowerCase().includes('related')) {
+                    userMessage = 'Cannot delete this company because it has related records (employees, departments, leave requests, etc.). Please remove or reassign all related records first, then try again.';
+                } else {
+                    userMessage = backendMessage || 'Failed to delete company';
+                }
+                
+                toast.error(userMessage, { duration: 6000 });
+            }
         }
     };
 
@@ -175,7 +240,16 @@ export const Company: React.FC = () => {
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {currentItems.length === 0 ? (
+                            {isFetching ? (
+                                <TableRow>
+                                    <TableCell colSpan={5} className="text-center py-8">
+                                        <div className="flex items-center justify-center gap-2 text-muted-foreground">
+                                            <Loader2 className="w-4 h-4 animate-spin" />
+                                            Loading companies...
+                                        </div>
+                                    </TableCell>
+                                </TableRow>
+                            ) : currentItems.length === 0 ? (
                                 <TableRow>
                                     <TableCell colSpan={5} className="text-center text-muted-foreground">
                                         No companies found.
@@ -309,11 +383,18 @@ export const Company: React.FC = () => {
                             </div>
                         </div>
                         <DialogFooter>
-                            <Button variant="outline" onClick={handleCloseDialog}>
+                            <Button variant="outline" onClick={handleCloseDialog} disabled={isLoading}>
                                 Cancel
                             </Button>
-                            <Button onClick={handleSave}>
-                                {editingCompany ? 'Update' : 'Add'} Company
+                            <Button onClick={handleSave} disabled={isLoading}>
+                                {isLoading ? (
+                                    <>
+                                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                        {editingCompany ? 'Updating...' : 'Adding...'}
+                                    </>
+                                ) : (
+                                    <>{editingCompany ? 'Update' : 'Add'} Company</>
+                                )}
                             </Button>
                         </DialogFooter>
                     </DialogContent>
