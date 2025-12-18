@@ -35,6 +35,7 @@ export interface User {
   email: string;
   password?: string; // Added for User Creation mock
   role: UserRole;
+  roleIds?: number[]; // Store roleIds from backend for editing
   departmentId: string;
   companyId?: string; // Added for filtering
   designation: string;
