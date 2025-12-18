@@ -74,3 +74,11 @@ export const deleteCompany = async (id: string): Promise<void> => {
   await apiClient.delete(`${COMPANY_BASE_URL}/${id}`);
   console.log('Company deleted successfully');
 };
+
+export const companyService = {
+  addCompany,
+  getAllCompanies,
+  getCompanyById,
+  updateCompany,
+  deleteCompany,
+};

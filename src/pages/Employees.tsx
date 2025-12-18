@@ -70,12 +70,20 @@ export const Employees: React.FC = () => {
       setDepartments([]);
       return;
     }
+<<<<<<< Updated upstream
     
+=======
+
+>>>>>>> Stashed changes
     setLoadingDepartments(true);
     try {
       const departmentsData = await departmentService.getDepartmentsByCompanyId(companyId);
       setDepartments(departmentsData);
+<<<<<<< Updated upstream
       
+=======
+
+>>>>>>> Stashed changes
       if (departmentsData.length === 0) {
         console.log(`ℹ️ No departments found for company ${companyId}`);
       } else {
@@ -112,7 +120,11 @@ export const Employees: React.FC = () => {
   useEffect(() => {
     const fetchCompanies = async () => {
       console.log('🚀 Starting to fetch companies...');
+<<<<<<< Updated upstream
       
+=======
+
+>>>>>>> Stashed changes
       // Check if user has authentication token
       const token = localStorage.getItem('authToken');
       if (!token || token === 'undefined' || token === 'null') {
@@ -121,14 +133,22 @@ export const Employees: React.FC = () => {
         setCompanies([]);
         return;
       }
+<<<<<<< Updated upstream
       
+=======
+
+>>>>>>> Stashed changes
       console.log('🔑 Authentication token found, proceeding with API call...');
       setLoadingCompanies(true);
       try {
         console.log('📞 Calling companyService.getAllCompanies()...');
         const companiesData = await companyService.getAllCompanies();
         console.log('✅ Received companies data:', companiesData);
+<<<<<<< Updated upstream
         
+=======
+
+>>>>>>> Stashed changes
         // Ensure we have a valid array
         if (Array.isArray(companiesData)) {
           console.log(`🎉 Setting ${companiesData.length} companies to state`);
@@ -176,7 +196,11 @@ export const Employees: React.FC = () => {
       try {
         const employeesData = await employeeService.getEmployeesByCompany(parseInt(filterCompany));
         console.log('✅ Received employees data:', employeesData);
+<<<<<<< Updated upstream
         
+=======
+
+>>>>>>> Stashed changes
         if (Array.isArray(employeesData) && employeesData.length > 0) {
           // Convert backend employee data to User format
           const mappedEmployees = employeesData.map(emp => {
@@ -188,7 +212,11 @@ export const Employees: React.FC = () => {
                 roleName = roleObj.name.toLowerCase() as UserRole;
               }
             }
+<<<<<<< Updated upstream
             
+=======
+
+>>>>>>> Stashed changes
             return {
               id: emp.id?.toString() || '',
               name: `${emp.firstName || ''} ${emp.lastName || ''}`.trim(),
@@ -206,7 +234,11 @@ export const Employees: React.FC = () => {
               previousExperience: emp.previousExperience || 0,
             };
           });
+<<<<<<< Updated upstream
           
+=======
+
+>>>>>>> Stashed changes
           setUsers(mappedEmployees);
           toast.success(`Loaded ${mappedEmployees.length} employees for selected company`);
         } else if (employeesData.length === 0) {
@@ -226,7 +258,11 @@ export const Employees: React.FC = () => {
   useEffect(() => {
     const fetchRoles = async () => {
       console.log('🚀 Starting to fetch roles...');
+<<<<<<< Updated upstream
       
+=======
+
+>>>>>>> Stashed changes
       // Check if user has authentication token
       const token = localStorage.getItem('authToken');
       if (!token || token === 'undefined' || token === 'null') {
@@ -235,7 +271,11 @@ export const Employees: React.FC = () => {
         setRoles([]);
         return;
       }
+<<<<<<< Updated upstream
       
+=======
+
+>>>>>>> Stashed changes
       console.log('🔑 Authentication token found, proceeding with roles API call...');
       setLoadingRoles(true);
       try {
@@ -243,7 +283,11 @@ export const Employees: React.FC = () => {
         const rolesData = await roleService.getAllRoles();
         console.log('✅ Received roles data:', rolesData);
         console.log('🔢 Roles array length:', rolesData?.length);
+<<<<<<< Updated upstream
         
+=======
+
+>>>>>>> Stashed changes
         // Ensure we have a valid array
         if (Array.isArray(rolesData) && rolesData.length > 0) {
           console.log(`🎉 Setting ${rolesData.length} roles to state`);
@@ -296,7 +340,11 @@ export const Employees: React.FC = () => {
       setEditingUser(user);
       // Get company from user's companyId directly
       const companyId = user.companyId || '';
+<<<<<<< Updated upstream
       
+=======
+
+>>>>>>> Stashed changes
       // Find the role ID from the role name
       const userRole = roles.find(role => role.name.toLowerCase() === user.role.toLowerCase());
       const roleId = userRole ? userRole.id.toString() : '';
@@ -372,6 +420,14 @@ export const Employees: React.FC = () => {
       return;
     }
 
+    // Additional validation for role ID
+    const roleId = parseInt(formData.role);
+    if (isNaN(roleId) || roleId <= 0) {
+      console.log('❌ Invalid role ID:', formData.role, 'Parsed:', roleId);
+      toast.error('Please select a valid role');
+      return;
+    }
+
     // Password validation for new users
     if (!editingUser && !formData.password) {
       toast.error('Password is required for new employees');
@@ -389,6 +445,7 @@ export const Employees: React.FC = () => {
         console.log('📝 Preparing employee data for backend update...');
         console.log('🔍 Editing user ID:', editingUser.id);
         console.log('🔍 Form data:', formData);
+<<<<<<< Updated upstream
         
         const roleId = parseInt(formData.role);
         if (isNaN(roleId) || roleId <= 0) {
@@ -419,6 +476,38 @@ export const Employees: React.FC = () => {
         const selectedRole = roles.find(role => role.id.toString() === formData.role);
         const roleName = selectedRole ? selectedRole.name.toLowerCase() as UserRole : 'employee' as UserRole;
         
+=======
+
+        const roleId = parseInt(formData.role);
+        if (isNaN(roleId) || roleId <= 0) {
+          throw new Error('Invalid role selection');
+        }
+
+        const updateData: UpdateEmployeeRequest = {
+          firstName: formData.firstName.trim(),
+          lastName: formData.lastName.trim(),
+          email: formData.email.trim(),
+          password: formData.password || undefined, // Only send if changed
+          companyId: parseInt(formData.companyId),
+          departmentId: parseInt(formData.departmentId),
+          roleIds: [roleId],
+          joinDate: formData.joinDate,
+          previousExperience: formData.previousExperience,
+        };
+
+        console.log('📤 Sending update data to backend:', updateData);
+        console.log('📤 Final JSON payload:', JSON.stringify(updateData, null, 2));
+
+        const response = await employeeService.updateEmployee(editingUser.id, updateData);
+
+        console.log('✅ Employee updated successfully in database:', response);
+        toast.success('Employee updated successfully in the database!');
+
+        // Update local state for immediate UI update
+        const selectedRole = roles.find(role => role.id.toString() === formData.role);
+        const roleName = selectedRole ? selectedRole.name.toLowerCase() as UserRole : 'employee' as UserRole;
+
+>>>>>>> Stashed changes
         const updatedUser: User = {
           ...editingUser,
           name: fullName,
@@ -438,7 +527,11 @@ export const Employees: React.FC = () => {
 
         console.log('➕ Updating employee in local UI state');
         setUsers(users.map(u => u.id === editingUser.id ? updatedUser : u));
+<<<<<<< Updated upstream
         
+=======
+
+>>>>>>> Stashed changes
       } catch (error) {
         console.error('❌ Failed to update employee in database:', error);
         console.error('❌ Error message:', error.message);
@@ -457,6 +550,7 @@ export const Employees: React.FC = () => {
         console.log('🔍 Role value from form:', formData.role, 'Type:', typeof formData.role);
         console.log('🔍 Parsed role ID:', parseInt(formData.role), 'IsNaN:', isNaN(parseInt(formData.role)));
         console.log('🔍 Available roles:', roles.map(r => ({ id: r.id, name: r.name, type: typeof r.id })));
+<<<<<<< Updated upstream
         
         const roleId = parseInt(formData.role);
         if (isNaN(roleId) || roleId <= 0) {
@@ -483,11 +577,43 @@ export const Employees: React.FC = () => {
         console.log('✅ Employee saved successfully to database:', response);
         toast.success('Employee added successfully to the database!');
         
+=======
+
+        const roleId = parseInt(formData.role);
+        if (isNaN(roleId) || roleId <= 0) {
+          throw new Error('Invalid role selection');
+        }
+
+        const employeeData: AddEmployeeRequest = {
+          firstName: formData.firstName.trim(),
+          lastName: formData.lastName.trim(),
+          email: formData.email.trim(),
+          password: formData.password,
+          companyId: parseInt(formData.companyId),
+          departmentId: parseInt(formData.departmentId),
+          roleIds: [roleId], // Matches backend DTO: List<Long> roleIds
+          joinDate: formData.joinDate,
+          previousExperience: formData.previousExperience,
+        };
+
+        console.log('📤 Sending employee data to backend:', employeeData);
+        console.log('📤 Final JSON payload:', JSON.stringify(employeeData, null, 2));
+
+        const response = await employeeService.addEmployee(employeeData);
+
+        console.log('✅ Employee saved successfully to database:', response);
+        toast.success('Employee added successfully to the database!');
+
+>>>>>>> Stashed changes
         // Add to local state for immediate UI update
         // Find the role name from the roles array using the roleId
         const selectedRole = roles.find(role => role.id.toString() === formData.role);
         const roleName = selectedRole ? selectedRole.name.toLowerCase() as UserRole : 'employee' as UserRole;
+<<<<<<< Updated upstream
         
+=======
+
+>>>>>>> Stashed changes
         const newUser: User = {
           id: response.data.id.toString(),
           name: fullName,
@@ -502,10 +628,17 @@ export const Employees: React.FC = () => {
           currentExperience: calculatedCurrentExp,
           previousExperience: formData.previousExperience,
         };
+<<<<<<< Updated upstream
         
         console.log('➕ Adding employee to local UI state for immediate display');
         setUsers([...users, newUser]);
         
+=======
+
+        console.log('➕ Adding employee to local UI state for immediate display');
+        setUsers([...users, newUser]);
+
+>>>>>>> Stashed changes
       } catch (error) {
         console.error('❌ Failed to save employee to database:', error);
         console.error('❌ Error message:', error.message);
@@ -524,6 +657,7 @@ export const Employees: React.FC = () => {
       console.log('🗑️ Starting to delete employee from backend database...');
       try {
         await employeeService.deleteEmployee(userId);
+<<<<<<< Updated upstream
         
         console.log('✅ Employee deleted successfully from database');
         toast.success('Employee deleted successfully from the database!');
@@ -532,6 +666,16 @@ export const Employees: React.FC = () => {
         setUsers(users.filter(u => u.id !== userId));
         setBalances(prev => prev.filter(b => b.userId !== userId));
         
+=======
+
+        console.log('✅ Employee deleted successfully from database');
+        toast.success('Employee deleted successfully from the database!');
+
+        // Remove from local state
+        setUsers(users.filter(u => u.id !== userId));
+        setBalances(prev => prev.filter(b => b.userId !== userId));
+
+>>>>>>> Stashed changes
       } catch (error) {
         console.error('❌ Failed to delete employee from database:', error);
         console.error('❌ Error message:', error.message);
@@ -582,7 +726,11 @@ export const Employees: React.FC = () => {
                       {company.companyName || company.name || 'Unnamed Company'}
                     </SelectItem>
                   ))
+<<<<<<< Updated upstream
                 )}\n              </SelectContent>
+=======
+                )}            </SelectContent>
+>>>>>>> Stashed changes
             </Select>
             <Select value={filterDepartment} onValueChange={setFilterDepartment}>
               <SelectTrigger className="w-48">
@@ -705,7 +853,11 @@ export const Employees: React.FC = () => {
                     >
                       <SelectTrigger>
                         <SelectValue placeholder={
+<<<<<<< Updated upstream
                           !formData.companyId ? "Select Company first" : 
+=======
+                          !formData.companyId ? "Select Company first" :
+>>>>>>> Stashed changes
                           loadingDepartments ? "Loading departments..." :
                           "Select Department"
                         } />
