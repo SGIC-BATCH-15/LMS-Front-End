@@ -17,8 +17,8 @@ export const MyLeaves: React.FC = () => {
   const userBalances = leaveBalances.filter(b => b.userId === currentUser.id);
   const userRequests = leaveRequests.filter(r => r.employeeId === currentUser.id);
 
-  const filteredRequests = activeTab === 'all' 
-    ? userRequests 
+  const filteredRequests = activeTab === 'all'
+    ? userRequests
     : userRequests.filter(r => r.status === activeTab);
 
   return (
@@ -53,9 +53,6 @@ export const MyLeaves: React.FC = () => {
                   <div className="col-span-2 text-center py-12 bg-card border border-border rounded-xl">
                     <CalendarDays className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
                     <p className="text-muted-foreground">No {activeTab === 'all' ? '' : activeTab} leave requests</p>
-                    <Button className="mt-4" onClick={() => navigate('/apply-leave')}>
-                      Apply for Leave
-                    </Button>
                   </div>
                 )}
               </div>
