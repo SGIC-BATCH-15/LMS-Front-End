@@ -17,7 +17,7 @@ import {
   LogOut,
   ChevronDown,
   ChevronRight,
-
+  Mail,
   FolderOpen,
   UserCog,
 } from 'lucide-react';
@@ -67,6 +67,8 @@ const getNavItems = (): MenuItem[] => {
         { to: '/roles', label: 'Roles', icon: UserCog, permission: 'manage_roles' },
         { to: '/roles-permissions', label: 'Roles & Permissions', icon: Shield, permission: 'manage_roles' },
         { to: '/leave-policies', label: 'Leave Policies', icon: FileText, permission: 'manage_policies' },
+        { to: '/email-configuration', label: 'Email Configuration', icon: Mail, permission: 'system_settings' },
+        { to: '/leave-notification-rules', label: 'Leave Notification Rules', icon: Settings, permission: 'system_settings' },
       ],
     },
   ];
@@ -79,10 +81,7 @@ export const Sidebar: React.FC = () => {
   const [expandedGroups, setExpandedGroups] = useState<string[]>([]);
   const [isCollapsed, setIsCollapsed] = useState(false);
 
-  // If no user is authenticated, don't render the sidebar
-  if (!currentUser) {
-    return null;
-  }
+
 
   const navItems = getNavItems();
 
@@ -107,7 +106,7 @@ export const Sidebar: React.FC = () => {
     }, []);
   };
 
-  const filteredNavItems = filterItems(navItems);
+  const filteredNavItems = currentUser ? filterItems(navItems) : [];
 
 
     // Enhanced logout with backend call
@@ -147,6 +146,11 @@ export const Sidebar: React.FC = () => {
       }
     });
   }, [location.pathname]);
+
+  // If no user is authenticated, don't render the sidebar
+  if (!currentUser) {
+    return null;
+  }
 
   const toggleGroup = (label: string) => {
     // Accordion behavior: only one group open at a time
