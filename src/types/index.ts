@@ -93,6 +93,11 @@ export interface LeaveRequest {
   currentStep: number;
   createdAt: string;
   updatedAt: string;
+  permissions: {
+    canApprove: boolean;
+    canReject: boolean;
+    canCancel: boolean;
+  };
 }
 
 export interface Notification {

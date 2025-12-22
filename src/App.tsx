@@ -21,6 +21,8 @@ import { Designations } from "./pages/Designations";
 import { LeaveTypes } from "./pages/LeaveTypes";
 import { LeavePolicies } from "./pages/LeavePolicies";
 import { Reports } from "./pages/Reports";
+import { EmailConfiguration } from "./pages/EmailConfiguration";
+import { LeaveNotificationRules } from "./pages/LeaveNotificationRules";
 
 import NotFound from "./pages/NotFound";
 
@@ -50,6 +52,8 @@ const App = () => (
             <Route path="/designations" element={<ProtectedRoute requiredPermission="manage_designations"><Designations /></ProtectedRoute>} />
             <Route path="/leave-types" element={<ProtectedRoute requiredPermission="manage_leave_types"><LeaveTypes /></ProtectedRoute>} />
             <Route path="/leave-policies" element={<ProtectedRoute requiredPermission="manage_policies"><LeavePolicies /></ProtectedRoute>} />
+            <Route path="/email-configuration" element={<ProtectedRoute requiredPermission="system_settings"><EmailConfiguration /></ProtectedRoute>} />
+            <Route path="/leave-notification-rules" element={<ProtectedRoute requiredPermission="system_settings"><LeaveNotificationRules /></ProtectedRoute>} />
             <Route path="/reports" element={<ProtectedRoute requiredPermission="view_reports"><Reports /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
