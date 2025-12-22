@@ -13,6 +13,14 @@ import {
     deleteLeaveType,
     LeaveTypeResponseDto
 } from '@/components/services/leavetypeService';
+import {
+    Pagination,
+    PaginationContent,
+    PaginationItem,
+    PaginationLink,
+    PaginationNext,
+    PaginationPrevious,
+} from "@/components/ui/pagination";
 
 interface LeaveTypeConfig {
     id: string;
@@ -38,6 +46,8 @@ export const LeaveTypes: React.FC = () => {
     const [editingType, setEditingType] = useState<LeaveTypeConfig | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
     const [formData, setFormData] = useState({ displayName: '' });
+    const [currentPage, setCurrentPage] = useState(1);
+    const itemsPerPage = 10;
     const { toast } = useToast();
 
     const fetchLeaveTypes = async () => {
@@ -133,6 +143,18 @@ export const LeaveTypes: React.FC = () => {
         lt.displayName.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
+    // Client-Side Pagination Logic
+    const totalPages = Math.max(1, Math.ceil(filteredLeaveTypes.length / itemsPerPage));
+    const currentItems = filteredLeaveTypes.slice(
+        (currentPage - 1) * itemsPerPage,
+        currentPage * itemsPerPage
+    );
+
+    // Reset page on search
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [searchTerm]);
+
     return (
         <DashboardLayout title="Leave Types" subtitle="Configure different types of leaves">
             <div className="space-y-6">
@@ -175,7 +197,7 @@ export const LeaveTypes: React.FC = () => {
                                 </tr>
                             </thead>
                             <tbody className="bg-white divide-y divide-gray-200">
-                                {filteredLeaveTypes.map((leaveType) => (
+                                {currentItems.map((leaveType) => (
                                     <tr key={leaveType.id} className="hover:bg-gray-50">
                                         <td className="px-6 py-4 whitespace-nowrap">
                                             <div className="flex items-center gap-3">
@@ -210,6 +232,39 @@ export const LeaveTypes: React.FC = () => {
                         </table>
                     </div>
                 </div>
+
+                {/* Pagination */}
+                {totalPages > 1 && (
+                    <Pagination>
+                        <PaginationContent>
+                            <PaginationItem>
+                                <PaginationPrevious
+                                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                    className={currentPage === 1 ? 'pointer-events-none opacity-50' : 'cursor-pointer'}
+                                />
+                            </PaginationItem>
+
+                            {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                                <PaginationItem key={page}>
+                                    <PaginationLink
+                                        isActive={page === currentPage}
+                                        onClick={() => setCurrentPage(page)}
+                                        className="cursor-pointer"
+                                    >
+                                        {page}
+                                    </PaginationLink>
+                                </PaginationItem>
+                            ))}
+
+                            <PaginationItem>
+                                <PaginationNext
+                                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                                    className={currentPage === totalPages ? 'pointer-events-none opacity-50' : 'cursor-pointer'}
+                                />
+                            </PaginationItem>
+                        </PaginationContent>
+                    </Pagination>
+                )}
 
                 {/* Add/Edit Dialog */}
                 <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
