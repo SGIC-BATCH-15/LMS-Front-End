@@ -83,8 +83,20 @@ export const LeaveRequestCard: React.FC<LeaveRequestCardProps> = ({
             </span>
           </div>
 
-          {showActions && request.status === 'pending' ? (
-            <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
+          <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
+            {request.permissions?.canCancel && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="text-muted-foreground hover:text-foreground"
+                onClick={() => console.log('Cancel logic triggered for', request.id)} // Placeholder for cancel action
+                title="Cancel Request"
+              >
+                Cancel
+              </Button>
+            )}
+
+            {request.permissions?.canReject && (
               <Button
                 size="icon"
                 variant="outline"
@@ -94,6 +106,9 @@ export const LeaveRequestCard: React.FC<LeaveRequestCardProps> = ({
               >
                 <XCircle className="w-5 h-5" />
               </Button>
+            )}
+
+            {request.permissions?.canApprove && (
               <Button
                 size="icon"
                 className="rounded-full w-8 h-8 bg-blue-600 hover:bg-blue-700 shadow-sm"
@@ -102,10 +117,13 @@ export const LeaveRequestCard: React.FC<LeaveRequestCardProps> = ({
               >
                 <CheckCircle className="w-5 h-5" />
               </Button>
-            </div>
-          ) : (
-            <ChevronRight className="w-5 h-5 text-muted-foreground" />
-          )}
+            )}
+
+            {/* Show chevron if no actions are available */}
+            {!request.permissions?.canApprove && !request.permissions?.canReject && !request.permissions?.canCancel && (
+              <ChevronRight className="w-5 h-5 text-muted-foreground" />
+            )}
+          </div>
         </div>
       </div>
     </div>
