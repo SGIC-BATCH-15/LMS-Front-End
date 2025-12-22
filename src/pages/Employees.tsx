@@ -14,7 +14,7 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Search, Plus, Edit, Trash2, Building } from 'lucide-react';
+import { Search, Plus, Pencil, Trash2, Building } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { differenceInYears } from 'date-fns';
 import {
@@ -473,8 +473,8 @@ export const Employees: React.FC = () => {
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">
-                        <Button variant="ghost" size="icon" onClick={() => handleOpenDialog(user)}>
-                          <Edit className="w-4 h-4" />
+                        <Button variant="ghost" size="sm" onClick={() => handleOpenDialog(user)} title="Edit">
+                          <Pencil className="w-4 h-4" />
                         </Button>
                         <Button variant="ghost" size="icon" className="text-destructive" onClick={() => handleDelete(user.id)}>
                           <Trash2 className="w-4 h-4" />

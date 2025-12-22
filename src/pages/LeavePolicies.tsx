@@ -9,7 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { Plus, Edit, Trash2, RefreshCw } from 'lucide-react';
+import { Plus, Pencil, Trash2, RefreshCw } from 'lucide-react';
 import { LeavePolicy, LeaveType } from '@/types';
 
 interface PolicyFormData {
@@ -274,8 +274,8 @@ export const LeavePolicies: React.FC = () => {
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-2">
-                      <Button variant="ghost" size="icon" onClick={() => handleEditPolicy(policy)}>
-                        <Edit className="w-4 h-4" />
+                      <Button variant="ghost" size="sm" onClick={() => handleEditPolicy(policy)} title="Edit">
+                        <Pencil className="w-4 h-4" />
                       </Button>
                       <Button variant="ghost" size="icon" className="text-destructive" onClick={() => handleDeletePolicy(policy.id)}>
                         <Trash2 className="w-4 h-4" />
