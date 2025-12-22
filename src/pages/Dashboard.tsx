@@ -175,9 +175,6 @@ export const Dashboard: React.FC = () => {
               <div className="col-span-2 text-center py-12 bg-card border border-border rounded-xl">
                 <CalendarDays className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
                 <p className="text-muted-foreground">No leave requests yet</p>
-                <Button className="mt-4" onClick={() => navigate('/apply-leave')}>
-                  Apply for Leave
-                </Button>
               </div>
             )}
           </div>

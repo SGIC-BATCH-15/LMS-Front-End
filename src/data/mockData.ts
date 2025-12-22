@@ -177,6 +177,11 @@ export const leaveRequests: LeaveRequest[] = [
     currentStep: 2,
     createdAt: '2025-01-08T09:00:00Z',
     updatedAt: '2025-01-10T14:30:00Z',
+    permissions: {
+      canApprove: true,
+      canReject: true,
+      canCancel: false,
+    },
   },
   {
     id: 'req-2',
@@ -197,6 +202,11 @@ export const leaveRequests: LeaveRequest[] = [
     currentStep: 2,
     createdAt: '2025-01-11T08:00:00Z',
     updatedAt: '2025-01-11T11:00:00Z',
+    permissions: {
+      canApprove: false,
+      canReject: false,
+      canCancel: false,
+    },
   },
   {
     id: 'req-3',
@@ -217,6 +227,11 @@ export const leaveRequests: LeaveRequest[] = [
     currentStep: 1,
     createdAt: '2025-02-15T10:00:00Z',
     updatedAt: '2025-02-15T10:00:00Z',
+    permissions: {
+      canApprove: true,
+      canReject: true,
+      canCancel: false,
+    },
   },
 ];
 
