@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { DashboardLayout } from '@/components/templates/DashboardLayout/DashboardLayout';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -6,21 +6,27 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Plus, Pencil, Trash2, Search } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import {
+    getAllLeaveTypes,
+    createLeaveType,
+    updateLeaveType,
+    deleteLeaveType,
+    LeaveTypeResponseDto
+} from '@/components/services/leavetypeService';
+import {
+    Pagination,
+    PaginationContent,
+    PaginationItem,
+    PaginationLink,
+    PaginationNext,
+    PaginationPrevious,
+} from "@/components/ui/pagination";
 
 interface LeaveTypeConfig {
     id: string;
     displayName: string;
     color: string;
 }
-
-const initialLeaveTypes: LeaveTypeConfig[] = [
-    { id: '1', displayName: 'Annual Leave', color: 'bg-blue-500' },
-    { id: '2', displayName: 'Sick Leave', color: 'bg-red-500' },
-    { id: '3', displayName: 'Casual Leave', color: 'bg-green-500' },
-    { id: '4', displayName: 'Maternity Leave', color: 'bg-pink-500' },
-    { id: '5', displayName: 'Paternity Leave', color: 'bg-purple-500' },
-    { id: '6', displayName: 'Unpaid Leave', color: 'bg-yellow-500' },
-];
 
 const availableColors = [
     'bg-blue-500',
@@ -35,12 +41,37 @@ const availableColors = [
 ];
 
 export const LeaveTypes: React.FC = () => {
-    const [leaveTypes, setLeaveTypes] = useState<LeaveTypeConfig[]>(initialLeaveTypes);
+    const [leaveTypes, setLeaveTypes] = useState<LeaveTypeConfig[]>([]);
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [editingType, setEditingType] = useState<LeaveTypeConfig | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
     const [formData, setFormData] = useState({ displayName: '' });
+    const [currentPage, setCurrentPage] = useState(1);
+    const itemsPerPage = 10;
     const { toast } = useToast();
+
+    const fetchLeaveTypes = async () => {
+        try {
+            const response = await getAllLeaveTypes(0, 100); // Fetching all for now
+            const mappedTypes = response.content.map((lt: LeaveTypeResponseDto, index: number) => ({
+                id: lt.id.toString(),
+                displayName: lt.leaveType,
+                color: availableColors[index % availableColors.length] // Assign color based on index
+            }));
+            setLeaveTypes(mappedTypes);
+        } catch (error) {
+            console.error("Failed to fetch leave types", error);
+            toast({
+                title: 'Error',
+                description: 'Failed to fetch leave types',
+                variant: 'destructive',
+            });
+        }
+    };
+
+    useEffect(() => {
+        fetchLeaveTypes();
+    }, []);
 
     const handleOpenDialog = (leaveType?: LeaveTypeConfig) => {
         if (leaveType) {
@@ -53,7 +84,7 @@ export const LeaveTypes: React.FC = () => {
         setIsDialogOpen(true);
     };
 
-    const handleSave = () => {
+    const handleSave = async () => {
         if (!formData.displayName.trim()) {
             toast({
                 title: 'Error',
@@ -63,42 +94,66 @@ export const LeaveTypes: React.FC = () => {
             return;
         }
 
-        if (editingType) {
-            setLeaveTypes(leaveTypes.map(lt =>
-                lt.id === editingType.id ? { ...lt, displayName: formData.displayName } : lt
-            ));
+        try {
+            if (editingType) {
+                await updateLeaveType(Number(editingType.id), { leaveType: formData.displayName });
+                toast({
+                    title: 'Success',
+                    description: 'Leave type updated successfully',
+                });
+            } else {
+                await createLeaveType({ leaveType: formData.displayName });
+                toast({
+                    title: 'Success',
+                    description: 'Leave type created successfully',
+                });
+            }
+            setIsDialogOpen(false);
+            fetchLeaveTypes();
+        } catch (error) {
+            console.error("Failed to save leave type", error);
             toast({
-                title: 'Success',
-                description: 'Leave type updated successfully',
-            });
-        } else {
-            // Assign random color
-            const randomColor = availableColors[Math.floor(Math.random() * availableColors.length)];
-            const newType: LeaveTypeConfig = {
-                id: Date.now().toString(),
-                displayName: formData.displayName,
-                color: randomColor,
-            };
-            setLeaveTypes([...leaveTypes, newType]);
-            toast({
-                title: 'Success',
-                description: 'Leave type created successfully',
+                title: 'Error',
+                description: 'Failed to save leave type',
+                variant: 'destructive',
             });
         }
-        setIsDialogOpen(false);
     };
 
-    const handleDelete = (id: string) => {
-        setLeaveTypes(leaveTypes.filter(lt => lt.id !== id));
-        toast({
-            title: 'Success',
-            description: 'Leave type deleted successfully',
-        });
+    const handleDelete = async (id: string) => {
+        try {
+            await deleteLeaveType(Number(id));
+            toast({
+                title: 'Success',
+                description: 'Leave type deleted successfully',
+                variant: 'default',
+            });
+            fetchLeaveTypes();
+        } catch (error) {
+            console.error("Failed to delete leave type", error);
+            toast({
+                title: 'Error',
+                description: 'Failed to delete leave type',
+                variant: 'destructive',
+            });
+        }
     };
 
     const filteredLeaveTypes = leaveTypes.filter(lt =>
         lt.displayName.toLowerCase().includes(searchTerm.toLowerCase())
     );
+
+    // Client-Side Pagination Logic
+    const totalPages = Math.max(1, Math.ceil(filteredLeaveTypes.length / itemsPerPage));
+    const currentItems = filteredLeaveTypes.slice(
+        (currentPage - 1) * itemsPerPage,
+        currentPage * itemsPerPage
+    );
+
+    // Reset page on search
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [searchTerm]);
 
     return (
         <DashboardLayout title="Leave Types" subtitle="Configure different types of leaves">
@@ -142,7 +197,7 @@ export const LeaveTypes: React.FC = () => {
                                 </tr>
                             </thead>
                             <tbody className="bg-white divide-y divide-gray-200">
-                                {filteredLeaveTypes.map((leaveType) => (
+                                {currentItems.map((leaveType) => (
                                     <tr key={leaveType.id} className="hover:bg-gray-50">
                                         <td className="px-6 py-4 whitespace-nowrap">
                                             <div className="flex items-center gap-3">
@@ -177,6 +232,39 @@ export const LeaveTypes: React.FC = () => {
                         </table>
                     </div>
                 </div>
+
+                {/* Pagination */}
+                {totalPages > 1 && (
+                    <Pagination>
+                        <PaginationContent>
+                            <PaginationItem>
+                                <PaginationPrevious
+                                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                    className={currentPage === 1 ? 'pointer-events-none opacity-50' : 'cursor-pointer'}
+                                />
+                            </PaginationItem>
+
+                            {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                                <PaginationItem key={page}>
+                                    <PaginationLink
+                                        isActive={page === currentPage}
+                                        onClick={() => setCurrentPage(page)}
+                                        className="cursor-pointer"
+                                    >
+                                        {page}
+                                    </PaginationLink>
+                                </PaginationItem>
+                            ))}
+
+                            <PaginationItem>
+                                <PaginationNext
+                                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                                    className={currentPage === totalPages ? 'pointer-events-none opacity-50' : 'cursor-pointer'}
+                                />
+                            </PaginationItem>
+                        </PaginationContent>
+                    </Pagination>
+                )}
 
                 {/* Add/Edit Dialog */}
                 <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>

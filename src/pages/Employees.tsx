@@ -7,10 +7,10 @@ import { Company } from '@/data/companies';
 import { roles as mockRoles } from '@/data/roles';
 import { designationsList } from '@/data/designationsList';
 import { companyService } from '@/components/services/companyService';
-import { departmentService, Department as APIDepartment } from '@/components/services/departmentService';
+import { departmentService } from '@/components/services/departmentService';
 import { roleService, Role as APIRole } from '@/components/services/roleService';
 import { employeeService, AddEmployeeRequest, UpdateEmployeeRequest } from '@/components/services/employeeService';
-import { LeaveBalance, User, UserRole } from '@/types';
+import { LeaveBalance, User, UserRole, Department as APIDepartment } from '@/types';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { Input } from '@/components/ui/input';
@@ -36,17 +36,19 @@ export const Employees: React.FC = () => {
   const [companies, setCompanies] = useState<Company[]>([]);
   const [departments, setDepartments] = useState<APIDepartment[]>([]);
   const [roles, setRoles] = useState<APIRole[]>([]);
+  const [designations, setDesignations] = useState<any[]>([]);
   const [loadingCompanies, setLoadingCompanies] = useState(false);
   const [loadingDepartments, setLoadingDepartments] = useState(false);
   const [loadingRoles, setLoadingRoles] = useState(false);
+  const [loadingDesignations, setLoadingDesignations] = useState(false);
   const [savingEmployee, setSavingEmployee] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterCompany, setFilterCompany] = useState('all');
+  const [filterCompany, setFilterCompany] = useState(''); // Default to empty or first company
   const [filterDepartment, setFilterDepartment] = useState('all');
   const [filterRole, setFilterRole] = useState('all');
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10;
+  const itemsPerPage = 5;
 
   const [formData, setFormData] = useState({
     firstName: '',
@@ -65,18 +67,19 @@ export const Employees: React.FC = () => {
   const dialogDepartments = departments;
 
   // Function to fetch departments when company changes
+  // Function to fetch departments when company changes
   const fetchDepartmentsByCompany = async (companyId: string) => {
-    if (!companyId) {
+    if (!companyId || companyId === 'all') {
       setDepartments([]);
       return;
     }
-    
+
     setLoadingDepartments(true);
     try {
-      // Always use companyId 1
-      const departmentsData = await departmentService.getDepartmentsByCompanyId('1');
+      // Use employeeService to avoid hardcoded companyId=1 in departmentService
+      const departmentsData = await employeeService.getDepartmentsByCompany(parseInt(companyId));
       setDepartments(departmentsData);
-      
+
       if (departmentsData.length === 0) {
         console.log(`ℹ️ No departments found for company ${companyId}`);
       } else {
@@ -113,7 +116,7 @@ export const Employees: React.FC = () => {
   useEffect(() => {
     const fetchCompanies = async () => {
       console.log('🚀 Starting to fetch companies...');
-      
+
       // Check if user has authentication token
       const token = localStorage.getItem('authToken');
       if (!token || token === 'undefined' || token === 'null') {
@@ -122,21 +125,26 @@ export const Employees: React.FC = () => {
         setCompanies([]);
         return;
       }
-      
+
       console.log('🔑 Authentication token found, proceeding with API call...');
       setLoadingCompanies(true);
       try {
         console.log('📞 Calling companyService.getAllCompanies()...');
         const companiesData = await companyService.getAllCompanies();
         console.log('✅ Received companies data:', companiesData);
-        
+
         // Ensure we have a valid array
         if (Array.isArray(companiesData)) {
           console.log(`🎉 Setting ${companiesData.length} companies to state`);
-          // Filter to only show company with ID 1
-          const filteredCompanies = companiesData.filter(company => company.id === '1' || company.id === 1);
-          setCompanies(filteredCompanies);
-          toast.success(`Successfully loaded ${filteredCompanies.length} companies from backend`);
+          // Show all companies, do not filter by ID 1
+          setCompanies(companiesData);
+
+          // Set default filter to first company if available
+          if (companiesData.length > 0 && filterCompany === '') {
+            setFilterCompany(companiesData[0].id.toString());
+          }
+
+          toast.success(`Successfully loaded ${companiesData.length} companies from backend`);
         } else {
           console.warn('⚠️ API returned non-array data:', companiesData);
           toast.error('Invalid data format received from backend.');
@@ -159,77 +167,91 @@ export const Employees: React.FC = () => {
     fetchCompanies();
   }, []);
 
-  // Fetch employees when company filter changes
-  useEffect(() => {
-    const fetchEmployeesByCompany = async () => {
-      // Skip if no company is selected or "all" is selected
-      if (filterCompany === 'all') {
-        console.log('📋 Showing all employees (no company filter)');
-        return;
-      }
+  // Function to fetch employees
+  const fetchEmployees = async () => {
+    // Skip if no company is selected
+    if (!filterCompany || filterCompany === 'all') {
+      return;
+    }
 
-      const token = localStorage.getItem('authToken');
-      if (!token || token === 'undefined' || token === 'null') {
-        console.warn('🔒 No valid authentication token for fetching employees');
-        toast.error('Please login to load employees from backend.');
-        return;
-      }
+    const token = localStorage.getItem('authToken');
+    if (!token || token === 'undefined' || token === 'null') {
+      console.warn('🔒 No valid authentication token for fetching employees');
+      toast.error('Please login to load employees from backend.');
+      return;
+    }
 
-      console.log(`🚀 Fetching employees for company ID: ${filterCompany}`);
-      try {
-        const employeesData = await employeeService.getEmployeesByCompany(parseInt(filterCompany));
-        console.log('✅ Received employees data:', employeesData);
-        
-        if (Array.isArray(employeesData) && employeesData.length > 0) {
-          // Convert backend employee data to User format
-          const mappedEmployees = employeesData.map(emp => {
-            // Get the role name from roleIds
-            let roleName: UserRole = 'employee';
-            if (emp.roleIds && emp.roleIds.length > 0 && roles.length > 0) {
-              const roleObj = roles.find(r => r.id === emp.roleIds[0]);
-              if (roleObj) {
-                roleName = roleObj.name.toLowerCase() as UserRole;
-              }
+    console.log(`🚀 Fetching employees for company ID: ${filterCompany}`);
+    try {
+      const employeesData = await employeeService.getEmployeesByCompany(parseInt(filterCompany));
+      console.log('✅ Received employees data:', employeesData);
+
+      if (Array.isArray(employeesData) && employeesData.length > 0) {
+        // Convert backend employee data to User format
+        const mappedEmployees = employeesData.map(emp => {
+          // Get the role name from roleIds
+          let roleName: UserRole = 'employee';
+          if (emp.roleIds && emp.roleIds.length > 0 && roles.length > 0) {
+            const roleObj = roles.find(r => r.id === emp.roleIds[0]);
+            if (roleObj) {
+              roleName = roleObj.name.toLowerCase() as UserRole;
             }
-            
-            return {
-              id: emp.id?.toString() || '',
-              name: `${emp.firstName || ''} ${emp.lastName || ''}`.trim(),
-              firstName: emp.firstName || '',
-              lastName: emp.lastName || '',
-              email: emp.email || '',
-              password: emp.password || '',
-              role: roleName,
-              roleIds: emp.roleIds || [], // Store roleIds for editing
-              departmentId: emp.departmentId?.toString() || '',
-              companyId: emp.companyId?.toString() || filterCompany,
-              designation: emp.designationId?.toString() || '',
-              joinDate: emp.joinDate || '',
-              currentExperience: 0,
-              previousExperience: emp.previousExperience || 0,
-            };
-          });
-          
-          setUsers(mappedEmployees);
-          toast.success(`Loaded ${mappedEmployees.length} employees for selected company`);
-        } else if (employeesData.length === 0) {
-          setUsers([]);
-          toast.info('No employees found for selected company');
-        }
-      } catch (error) {
-        console.error('❌ Failed to fetch employees by company:', error);
-        toast.error('Failed to load employees. Check console for details.');
-      }
-    };
+          }
 
-    fetchEmployeesByCompany();
-  }, [filterCompany]);
+          return {
+            id: emp.id?.toString() || '',
+            name: `${emp.firstName || ''} ${emp.lastName || ''}`.trim(),
+            firstName: emp.firstName || '',
+            lastName: emp.lastName || '',
+            email: emp.email || '',
+            password: emp.password || '',
+            role: roleName,
+            roleIds: emp.roleIds || [], // Store roleIds for editing
+            departmentId: emp.departmentId?.toString() || '',
+            companyId: emp.companyId?.toString() || filterCompany,
+            designation: emp.designationId?.toString() || '',
+            joinDate: emp.joinDate || '',
+            currentExperience: 0,
+            previousExperience: emp.previousExperience || 0,
+          };
+        });
+
+        setUsers(mappedEmployees);
+        toast.success(`Loaded ${mappedEmployees.length} employees for selected company`);
+      } else if (employeesData.length === 0) {
+        setUsers([]);
+        toast.info('No employees found for selected company');
+      }
+    } catch (error) {
+      console.error('❌ Failed to fetch employees by company:', error);
+      toast.error('Failed to load employees. Check console for details.');
+    }
+  };
+
+  // Fetch employees and departments when company filter changes
+  useEffect(() => {
+    if (filterCompany && filterCompany !== 'all') {
+      fetchEmployees();
+      fetchDepartmentsByCompany(filterCompany);
+    }
+  }, [filterCompany, roles]);
+
+  const getDepartmentName = (deptId: string) => {
+    if (!deptId) return 'Unknown';
+    return departments.find(d => d.id.toString() === deptId.toString())?.name || 'Unknown';
+  };
+
+  const getDesignationName = (designationId: string) => {
+    if (!designationId) return 'Unknown';
+    const designation = designations.find(d => d.id?.toString() === designationId.toString());
+    return designation ? (designation.designationName || designation.name || 'Unknown') : 'Unknown';
+  };
 
   // Fetch roles from API
   useEffect(() => {
     const fetchRoles = async () => {
       console.log('🚀 Starting to fetch roles...');
-      
+
       // Check if user has authentication token
       const token = localStorage.getItem('authToken');
       if (!token || token === 'undefined' || token === 'null') {
@@ -238,15 +260,16 @@ export const Employees: React.FC = () => {
         setRoles([]);
         return;
       }
-      
+
       console.log('🔑 Authentication token found, proceeding with roles API call...');
       setLoadingRoles(true);
       try {
-        console.log('📞 Calling roleService.getAllRoles()...');
-        const rolesData = await roleService.getAllRoles();
+        console.log('📞 Calling employeeService.getAllRoles()...');
+        // Use employeeService as per integration plan, though roleService logic is similar
+        const rolesData = await employeeService.getAllRoles();
         console.log('✅ Received roles data:', rolesData);
         console.log('🔢 Roles array length:', rolesData?.length);
-        
+
         // Ensure we have a valid array
         if (Array.isArray(rolesData) && rolesData.length > 0) {
           console.log(`🎉 Setting ${rolesData.length} roles to state`);
@@ -280,42 +303,30 @@ export const Employees: React.FC = () => {
     fetchRoles();
   }, []);
 
-  // Fetch departments from API
+  // Fetch departments moved to fetchDepartmentsByCompany logic called by effect or selection
+  // Removed the initial useEffect for departments because they depend on Company ID now.
+
+  // Fetch designations from API
   useEffect(() => {
-    const fetchDepartments = async () => {
-      console.log('🚀 Starting to fetch departments...');
-      
+    const fetchDesignations = async () => {
+      console.log('🚀 Starting to fetch designations...');
       const token = localStorage.getItem('authToken');
-      if (!token || token === 'undefined' || token === 'null') {
-        console.warn('🔒 No valid authentication token found for departments');
-        setDepartments([]);
-        return;
-      }
-      
-      setLoadingDepartments(true);
+      if (!token) return;
+
+      setLoadingDesignations(true);
       try {
-        console.log('📞 Calling departmentService.getDepartmentsByCompanyId()...');
-        const departmentsData = await departmentService.getDepartmentsByCompanyId('1');
-        console.log('✅ Received departments data:', departmentsData);
-        
-        if (Array.isArray(departmentsData) && departmentsData.length > 0) {
-          console.log(`🎉 Setting ${departmentsData.length} departments to state`);
-          setDepartments(departmentsData);
-        } else {
-          console.log('ℹ️ No departments found');
-          setDepartments([]);
+        const data = await employeeService.getAllDesignations();
+        console.log('✅ Received designations data:', data);
+        if (Array.isArray(data)) {
+          setDesignations(data);
         }
       } catch (error) {
-        console.error('❌ Failed to fetch departments:', error);
-        toast.error('Failed to load departments from backend.');
-        setDepartments([]);
+        console.error('❌ Failed to fetch designations:', error);
       } finally {
-        console.log('🏁 Finished loading departments');
-        setLoadingDepartments(false);
+        setLoadingDesignations(false);
       }
     };
-
-    fetchDepartments();
+    fetchDesignations();
   }, []);
 
   // Reset page when filters change
@@ -337,7 +348,7 @@ export const Employees: React.FC = () => {
       setEditingUser(user);
       // Get company from user's companyId directly
       const companyId = user.companyId || '';
-      
+
       // Find the role ID from the role name
       const userRole = roles.find(role => role.name.toLowerCase() === user.role.toLowerCase());
       const roleId = userRole ? userRole.id.toString() : '';
@@ -404,7 +415,7 @@ export const Employees: React.FC = () => {
       toast.error('Please fill in all required fields');
       return;
     }
-    
+
     // Additional validation for role ID
     const roleId = parseInt(formData.role);
     if (isNaN(roleId) || roleId <= 0) {
@@ -430,12 +441,12 @@ export const Employees: React.FC = () => {
         console.log('📝 Preparing employee data for backend update...');
         console.log('🔍 Editing user ID:', editingUser.id);
         console.log('🔍 Form data:', formData);
-        
+
         const roleId = parseInt(formData.role);
         if (isNaN(roleId) || roleId <= 0) {
           throw new Error('Invalid role selection');
         }
-        
+
         const updateData: UpdateEmployeeRequest = {
           firstName: formData.firstName.trim(),
           lastName: formData.lastName.trim(),
@@ -450,36 +461,15 @@ export const Employees: React.FC = () => {
 
         console.log('📤 Sending update data to backend:', updateData);
         console.log('📤 Final JSON payload:', JSON.stringify(updateData, null, 2));
-        
+
         const response = await employeeService.updateEmployee(editingUser.id, updateData);
-        
+
         console.log('✅ Employee updated successfully in database:', response);
         toast.success('Employee updated successfully in the database!');
-        
-        // Update local state for immediate UI update
-        const selectedRole = roles.find(role => role.id.toString() === formData.role);
-        const roleName = selectedRole ? selectedRole.name.toLowerCase() as UserRole : 'employee' as UserRole;
-        
-        const updatedUser: User = {
-          ...editingUser,
-          name: fullName,
-          firstName: formData.firstName,
-          lastName: formData.lastName,
-          email: formData.email,
-          password: formData.password || editingUser.password,
-          companyId: formData.companyId,
-          departmentId: formData.departmentId,
-          role: roleName,
-          roleIds: [roleId],
-          designation: formData.designation,
-          joinDate: formData.joinDate,
-          currentExperience: calculatedCurrentExp,
-          previousExperience: formData.previousExperience,
-        };
 
-        console.log('➕ Updating employee in local UI state');
-        setUsers(users.map(u => u.id === editingUser.id ? updatedUser : u));
-        
+        // Update local state by refreshing from backend
+        await fetchEmployees();
+
       } catch (error) {
         console.error('❌ Failed to update employee in database:', error);
         console.error('❌ Error message:', error.message);
@@ -494,16 +484,21 @@ export const Employees: React.FC = () => {
       setSavingEmployee(true);
       try {
         console.log('📝 Preparing employee data for backend...');
-                console.log('🔍 Form data before creating employee object:', formData);
+        console.log('🔍 Form data before creating employee object:', formData);
         console.log('🔍 Role value from form:', formData.role, 'Type:', typeof formData.role);
         console.log('🔍 Parsed role ID:', parseInt(formData.role), 'IsNaN:', isNaN(parseInt(formData.role)));
         console.log('🔍 Available roles:', roles.map(r => ({ id: r.id, name: r.name, type: typeof r.id })));
-        
+
         const roleId = parseInt(formData.role);
         if (isNaN(roleId) || roleId <= 0) {
           throw new Error('Invalid role selection');
         }
-        
+
+        const designationId = parseInt(formData.designation);
+        if (isNaN(designationId) || designationId <= 0) {
+          throw new Error('Designation ID is required and must be a valid number');
+        }
+
         const employeeData: AddEmployeeRequest = {
           firstName: formData.firstName.trim(),
           lastName: formData.lastName.trim(),
@@ -512,41 +507,22 @@ export const Employees: React.FC = () => {
           companyId: parseInt(formData.companyId),
           departmentId: parseInt(formData.departmentId),
           roleIds: [roleId], // Matches backend DTO: List<Long> roleIds
+          designationId: designationId,
           joinDate: formData.joinDate,
           previousExperience: formData.previousExperience,
         };
 
         console.log('📤 Sending employee data to backend:', employeeData);
         console.log('📤 Final JSON payload:', JSON.stringify(employeeData, null, 2));
-        
+
         const response = await employeeService.addEmployee(employeeData);
-        
+
         console.log('✅ Employee saved successfully to database:', response);
         toast.success('Employee added successfully to the database!');
-        
-        // Add to local state for immediate UI update
-        // Find the role name from the roles array using the roleId
-        const selectedRole = roles.find(role => role.id.toString() === formData.role);
-        const roleName = selectedRole ? selectedRole.name.toLowerCase() as UserRole : 'employee' as UserRole;
-        
-        const newUser: User = {
-          id: response.data.id.toString(),
-          name: fullName,
-          firstName: formData.firstName,
-          lastName: formData.lastName,
-          email: formData.email,
-          password: formData.password,
-          departmentId: formData.departmentId,
-          role: roleName, // Use the role name, not the ID
-          designation: formData.designation,
-          joinDate: formData.joinDate,
-          currentExperience: calculatedCurrentExp,
-          previousExperience: formData.previousExperience,
-        };
-        
-        console.log('➕ Adding employee to local UI state for immediate display');
-        setUsers([...users, newUser]);
-        
+
+        // Refresh list from backend to show new employee immediately
+        await fetchEmployees();
+
       } catch (error) {
         console.error('❌ Failed to save employee to database:', error);
         console.error('❌ Error message:', error.message);
@@ -565,14 +541,14 @@ export const Employees: React.FC = () => {
       console.log('🗑️ Starting to delete employee from backend database...');
       try {
         await employeeService.deleteEmployee(userId);
-        
+
         console.log('✅ Employee deleted successfully from database');
         toast.success('Employee deleted successfully from the database!');
-        
+
         // Remove from local state
         setUsers(users.filter(u => u.id !== userId));
         setBalances(prev => prev.filter(b => b.userId !== userId));
-        
+
       } catch (error) {
         console.error('❌ Failed to delete employee from database:', error);
         console.error('❌ Error message:', error.message);
@@ -581,9 +557,7 @@ export const Employees: React.FC = () => {
     }
   };
 
-  const getDepartmentName = (deptId: string) => {
-    return departments.find(d => d.id === parseInt(deptId))?.name || 'Unknown';
-  };
+
 
   const getUserBalances = (userId: string) => {
     // Combine mock balances with newly created ones
@@ -607,12 +581,16 @@ export const Employees: React.FC = () => {
                 className="pl-9 w-64"
               />
             </div>
-            <Select value={filterCompany} onValueChange={setFilterCompany}>
+            <Select value={filterCompany} onValueChange={(val) => {
+              setFilterCompany(val);
+              setFilterDepartment('all'); // Reset department filter
+              fetchDepartmentsByCompany(val);
+            }}>
               <SelectTrigger className="w-48">
-                <SelectValue placeholder="All Companies" />
+                <SelectValue placeholder={loadingCompanies ? "Loading..." : "Select Company"} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Companies</SelectItem>
+                {/* Removed "All Companies" option */}
                 {loadingCompanies ? (
                   <SelectItem value="loading" disabled>Loading companies...</SelectItem>
                 ) : companies.length === 0 ? (
@@ -623,7 +601,7 @@ export const Employees: React.FC = () => {
                       {company.companyName || company.name || 'Unnamed Company'}
                     </SelectItem>
                   ))
-                )}\n              </SelectContent>
+                )}             </SelectContent>
             </Select>
             <Select value={filterDepartment} onValueChange={setFilterDepartment}>
               <SelectTrigger className="w-48">
@@ -637,7 +615,7 @@ export const Employees: React.FC = () => {
                   <SelectItem value="no-data" disabled>No departments found</SelectItem>
                 ) : (
                   departments.map(dept => (
-                    <SelectItem key={dept.id} value={dept.id.toString()}>{dept.departmentName}</SelectItem>
+                    <SelectItem key={dept.id} value={dept.id.toString()}>{dept.name || 'Unnamed Department'}</SelectItem>
                   ))
                 )}
               </SelectContent>
@@ -648,9 +626,17 @@ export const Employees: React.FC = () => {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Roles</SelectItem>
-                <SelectItem value="admin">Admin</SelectItem>
-                <SelectItem value="manager">Manager</SelectItem>
-                <SelectItem value="staff">Staff</SelectItem>                <SelectItem value="employee">Employee</SelectItem>              </SelectContent>
+                {loadingRoles ? (
+                  <SelectItem value="loading" disabled>Loading roles...</SelectItem>
+                ) : roles.length === 0 ? (
+                  <SelectItem value="no-data" disabled>No roles found</SelectItem>
+                ) : (
+                  roles.map(role => (
+                    <SelectItem key={role.id} value={role.name.toLowerCase()}>
+                      {role.name}
+                    </SelectItem>
+                  ))
+                )}              </SelectContent>
             </Select>
           </div>
           <div className="flex gap-2">
@@ -667,192 +653,194 @@ export const Employees: React.FC = () => {
                 </DialogHeader>
                 <div className="space-y-4 py-4">
 
-                {/* Names */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="firstName">First Name *</Label>
-                    <Input
-                      id="firstName"
-                      placeholder="John"
-                      value={formData.firstName}
-                      onChange={e => setFormData({ ...formData, firstName: e.target.value })}
-                    />
+                  {/* Names */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="firstName">First Name *</Label>
+                      <Input
+                        id="firstName"
+                        placeholder="John"
+                        value={formData.firstName}
+                        onChange={e => setFormData({ ...formData, firstName: e.target.value })}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="lastName">Last Name *</Label>
+                      <Input
+                        id="lastName"
+                        placeholder="Doe"
+                        value={formData.lastName}
+                        onChange={e => setFormData({ ...formData, lastName: e.target.value })}
+                      />
+                    </div>
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="lastName">Last Name *</Label>
-                    <Input
-                      id="lastName"
-                      placeholder="Doe"
-                      value={formData.lastName}
-                      onChange={e => setFormData({ ...formData, lastName: e.target.value })}
-                    />
-                  </div>
-                </div>
 
-                {/* Email & Password */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="email">Email *</Label>
-                    <Input
-                      id="email"
-                      type="email"
-                      placeholder="john@company.com"
-                      value={formData.email}
-                      onChange={e => setFormData({ ...formData, email: e.target.value })}
-                    />
+                  {/* Email & Password */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="email">Email *</Label>
+                      <Input
+                        id="email"
+                        type="email"
+                        placeholder="john@company.com"
+                        value={formData.email}
+                        onChange={e => setFormData({ ...formData, email: e.target.value })}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="password">Password {editingUser ? '(Leave empty to keep)' : '*'}</Label>
+                      <Input
+                        id="password"
+                        type="password"
+                        placeholder={editingUser ? "******" : "Required"}
+                        value={formData.password}
+                        onChange={e => setFormData({ ...formData, password: e.target.value })}
+                      />
+                    </div>
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="password">Password {editingUser ? '(Leave empty to keep)' : '*'}</Label>
-                    <Input
-                      id="password"
-                      type="password"
-                      placeholder={editingUser ? "******" : "Required"}
-                      value={formData.password}
-                      onChange={e => setFormData({ ...formData, password: e.target.value })}
-                    />
-                  </div>
-                </div>
 
-                {/* Company & Department */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="company">Company *</Label>
-                    <Select
-                      value={formData.companyId}
-                      onValueChange={(value) => {
-                        setFormData({ ...formData, companyId: value, departmentId: '' });
-                        fetchDepartmentsByCompany(value);
-                      }}
-                      disabled={loadingCompanies}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder={loadingCompanies ? "Loading companies..." : "Select Company"} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {(companies || []).map(comp => (
-                          <SelectItem key={comp.id} value={comp.id.toString()}>
-                            {comp.companyName || comp.name || 'Unnamed Company'}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="department">Department *</Label>
-                    <Select
-                      value={formData.departmentId}
-                      onValueChange={v => setFormData({ ...formData, departmentId: v })}
-                      disabled={!formData.companyId || loadingDepartments}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder={
-                          !formData.companyId ? "Select Company first" : 
-                          loadingDepartments ? "Loading departments..." :
-                          "Select Department"
-                        } />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {departments.length === 0 && formData.companyId && !loadingDepartments ? (
-                          <SelectItem value="no-departments" disabled className="text-muted-foreground italic">
-                            No departments exist
-                          </SelectItem>
-                        ) : (
-                          dialogDepartments.map(dept => (
-                            <SelectItem key={dept.id} value={dept.id.toString()}>
-                              {dept.departmentName || dept.name || 'Unnamed Department'}
+                  {/* Company & Department */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="company">Company *</Label>
+                      <Select
+                        value={formData.companyId}
+                        onValueChange={(value) => {
+                          setFormData({ ...formData, companyId: value, departmentId: '' });
+                          fetchDepartmentsByCompany(value);
+                        }}
+                        disabled={loadingCompanies}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder={loadingCompanies ? "Loading companies..." : "Select Company"} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {(companies || []).map(comp => (
+                            <SelectItem key={comp.id} value={comp.id.toString()}>
+                              {comp.companyName || comp.name || 'Unnamed Company'}
                             </SelectItem>
-                          ))
-                        )}
-                      </SelectContent>
-                    </Select>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="department">Department *</Label>
+                      <Select
+                        value={formData.departmentId}
+                        onValueChange={v => setFormData({ ...formData, departmentId: v })}
+                        disabled={!formData.companyId || loadingDepartments}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder={
+                            !formData.companyId ? "Select Company first" :
+                              loadingDepartments ? "Loading departments..." :
+                                "Select Department"
+                          } />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {departments.length === 0 && formData.companyId && !loadingDepartments ? (
+                            <SelectItem value="no-departments" disabled className="text-muted-foreground italic">
+                              No departments exist
+                            </SelectItem>
+                          ) : (
+                            dialogDepartments.map(dept => (
+                              <SelectItem key={dept.id} value={dept.id.toString()}>
+                                {dept.name || 'Unnamed Department'}
+                              </SelectItem>
+                            ))
+                          )}
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
-                </div>
 
-                {/* Role & Designation */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="role">Role *</Label>
-                    <Select
-                      value={formData.role}
-                      onValueChange={v => setFormData({ ...formData, role: v })} // Remove UserRole casting
-                      disabled={loadingRoles}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder={loadingRoles ? "Loading roles..." : "Select Role"} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {roles.length === 0 && !loadingRoles ? (
-                          <SelectItem value="no-roles" disabled className="text-muted-foreground italic">
-                            No roles available
-                          </SelectItem>
-                        ) : (
-                          roles.map(role => (
-                            <SelectItem key={role.id} value={role.id.toString()}>{role.name}</SelectItem>
-                          ))
-                        )}
-                      </SelectContent>
-                    </Select>
+                  {/* Role & Designation */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="role">Role *</Label>
+                      <Select
+                        value={formData.role}
+                        onValueChange={v => setFormData({ ...formData, role: v })} // Remove UserRole casting
+                        disabled={loadingRoles}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder={loadingRoles ? "Loading roles..." : "Select Role"} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {roles.length === 0 && !loadingRoles ? (
+                            <SelectItem value="no-roles" disabled className="text-muted-foreground italic">
+                              No roles available
+                            </SelectItem>
+                          ) : (
+                            roles.map(role => (
+                              <SelectItem key={role.id} value={role.id.toString()}>{role.name}</SelectItem>
+                            ))
+                          )}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="designation">Designation</Label>
+                      <Select
+                        value={formData.designation}
+                        onValueChange={v => setFormData({ ...formData, designation: v })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select Designation" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {designations
+                            .filter(d => !formData.departmentId || d.departmentId?.toString() === formData.departmentId)
+                            .map(des => (
+                              <SelectItem key={des.id} value={des.id.toString()}>{des.name}</SelectItem>
+                            ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="designation">Designation</Label>
-                    <Select
-                      value={formData.designation}
-                      onValueChange={v => setFormData({ ...formData, designation: v })}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select Designation" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {designationsList.map(des => (
-                          <SelectItem key={des.id} value={des.name}>{des.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
 
-                {/* Dates & Experience */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="joinDate">Join Date *</Label>
-                    <Input
-                      id="joinDate"
-                      type="date"
-                      value={formData.joinDate}
-                      onChange={e => setFormData({ ...formData, joinDate: e.target.value })}
-                    />
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Current: {calculateCurrentExperience(formData.joinDate)} years
-                    </p>
+                  {/* Dates & Experience */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="joinDate">Join Date *</Label>
+                      <Input
+                        id="joinDate"
+                        type="date"
+                        value={formData.joinDate}
+                        onChange={e => setFormData({ ...formData, joinDate: e.target.value })}
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Current: {calculateCurrentExperience(formData.joinDate)} years
+                      </p>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="prevExp">Previous Exp (Years)</Label>
+                      <Input
+                        id="prevExp"
+                        type="number"
+                        min="0"
+                        value={formData.previousExperience}
+                        onChange={e => setFormData({ ...formData, previousExperience: parseInt(e.target.value) || 0 })}
+                      />
+                    </div>
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="prevExp">Previous Exp (Years)</Label>
-                    <Input
-                      id="prevExp"
-                      type="number"
-                      min="0"
-                      value={formData.previousExperience}
-                      onChange={e => setFormData({ ...formData, previousExperience: parseInt(e.target.value) || 0 })}
-                    />
-                  </div>
-                </div>
 
-                <div className="flex justify-end gap-2 mt-6">
-                  <Button variant="outline" onClick={() => setIsDialogOpen(false)} disabled={savingEmployee}>Cancel</Button>
-                  <Button onClick={handleSave} disabled={savingEmployee}>
-                    {savingEmployee ? (
-                      <>
-                        <span className="mr-2">Saving...</span>
-                        <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
-                      </>
-                    ) : (
-                      `${editingUser ? 'Update' : 'Create'} Employee`
-                    )}
-                  </Button>
+                  <div className="flex justify-end gap-2 mt-6">
+                    <Button variant="outline" onClick={() => setIsDialogOpen(false)} disabled={savingEmployee}>Cancel</Button>
+                    <Button onClick={handleSave} disabled={savingEmployee}>
+                      {savingEmployee ? (
+                        <>
+                          <span className="mr-2">Saving...</span>
+                          <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                        </>
+                      ) : (
+                        `${editingUser ? 'Update' : 'Create'} Employee`
+                      )}
+                    </Button>
+                  </div>
                 </div>
-              </div>
-            </DialogContent>
-          </Dialog>
+              </DialogContent>
+            </Dialog>
           </div>
         </div>
 
@@ -901,7 +889,7 @@ export const Employees: React.FC = () => {
                       </span>
                     </TableCell>
                     <TableCell>
-                      <span className="text-sm">{user.designation}</span>
+                      <span className="text-sm">{getDesignationName(user.designation)}</span>
                     </TableCell>
                     <TableCell>
                       <div className="flex flex-col">
@@ -930,9 +918,8 @@ export const Employees: React.FC = () => {
           </Table>
         </div>
 
-        {/* Pagination */}
         {totalPages > 1 && (
-          <Pagination className="mt-4">
+          <Pagination>
             <PaginationContent>
               <PaginationItem>
                 <PaginationPrevious
