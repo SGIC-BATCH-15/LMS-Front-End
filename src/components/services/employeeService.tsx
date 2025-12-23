@@ -8,6 +8,7 @@ export interface AddEmployeeRequest {
   companyId: number;
   departmentId: number;
   roleIds: number[]; // Matches backend DTO: List<Long> roleIds
+  designationId?: number;
   joinDate: string;
   previousExperience: number;
 }
@@ -20,6 +21,7 @@ export interface UpdateEmployeeRequest {
   companyId: number;
   departmentId: number;
   roleIds: number[];
+  designationId?: number;
   joinDate: string;
   previousExperience: number;
 }
@@ -47,20 +49,20 @@ export const employeeService = {
       console.log('� Adding new employee to backend...');
       console.log('📡 API URL: http://localhost:8081/api/v1/settings/employees/add');
       console.log('📝 Employee Data being sent:', JSON.stringify(employeeData, null, 2));
-      
+
       // Check authentication
       const token = localStorage.getItem('authToken');
       if (!token || token === 'undefined' || token === 'null') {
         throw new Error('No authentication token found. Please login first.');
       }
       console.log('🔑 Using auth token:', token.substring(0, 20) + '...');
-      
+
       const response = await apiClient.post<AddEmployeeResponse>('/settings/employees/add', employeeData);
-      
+
       console.log('✅ Employee Add API Response Status:', response.status);
       console.log('✅ Employee Add API Response:', response);
       console.log('📊 Employee Response data:', response.data);
-      
+
       if (response.status === 200 || response.status === 201) {
         // Backend uses 2001 for successful creation, 2000 for success
         if (response.data && (response.data.statusCode === 2001 || response.data.statusCode === 2000 || response.data.statusCode === 200)) {
@@ -76,18 +78,18 @@ export const employeeService = {
     } catch (error) {
       console.error('❌ Error adding employee:', error);
       console.error('❌ Full error details:', JSON.stringify(error, null, 2));
-      
+
       if (error.response) {
         console.error('📋 Response status:', error.response.status);
         console.error('📋 Response headers:', error.response.headers);
         console.error('📋 Response data:', error.response.data);
-        
+
         // Handle specific error cases with detailed backend messages
         if (error.response.status === 400) {
           // Extract detailed validation messages from backend
           const responseData = error.response.data;
           console.log('🔍 Analyzing 400 error response:', responseData);
-          
+
           // Check for different possible error message formats from backend
           if (responseData?.data && Array.isArray(responseData.data) && responseData.data.length > 0) {
             // Handle validation errors in data array format
@@ -145,7 +147,7 @@ export const employeeService = {
           // Handle other HTTP status codes
           const responseData = error.response.data;
           let errorMessage = 'Server error occurred.';
-          
+
           if (responseData?.message) {
             errorMessage = responseData.message;
           } else if (responseData?.statusMessage) {
@@ -155,7 +157,7 @@ export const employeeService = {
           } else if (error.response.statusText) {
             errorMessage = error.response.statusText;
           }
-          
+
           throw new Error(`${errorMessage} (Status: ${error.response.status})`);
         }
       } else if (error.request) {
@@ -173,12 +175,12 @@ export const employeeService = {
     try {
       console.log(`🔄 Fetching employees for company ID: ${companyId}`);
       console.log(`📡 API URL: http://localhost:8081/api/v1/settings/employees?companyId=${companyId}`);
-      
+
       const response = await apiClient.get(`/settings/employees?companyId=${companyId}`);
-      
+
       console.log('✅ Employees API Response received:', response);
       console.log('📊 Response data:', response.data);
-      
+
       if (response.data && response.data.data) {
         const employees = Array.isArray(response.data.data) ? response.data.data : [response.data.data];
         console.log(`✨ Successfully fetched ${employees.length} employees for company ${companyId}`);
@@ -195,7 +197,7 @@ export const employeeService = {
       if (error.response) {
         console.error('📋 Response status:', error.response.status);
         console.error('📋 Response data:', error.response.data);
-        
+
         if (error.response.status === 401 || error.response.status === 403) {
           throw new Error('Authentication required. Please login to access employees.');
         }
@@ -209,12 +211,12 @@ export const employeeService = {
     try {
       console.log('🔄 Fetching all employees from API...');
       console.log('📡 API URL: http://localhost:8081/api/v1/settings/employees');
-      
+
       const response = await apiClient.get('/settings/employees');
-      
+
       console.log('✅ All Employees API Response received:', response);
       console.log('📊 Response data:', response.data);
-      
+
       if (response.data && response.data.data) {
         const employees = Array.isArray(response.data.data) ? response.data.data : [response.data.data];
         console.log(`✨ Successfully fetched ${employees.length} employees`);
@@ -231,7 +233,7 @@ export const employeeService = {
       if (error.response) {
         console.error('📋 Response status:', error.response.status);
         console.error('📋 Response data:', error.response.data);
-        
+
         if (error.response.status === 401 || error.response.status === 403) {
           throw new Error('Authentication required. Please login to access employees.');
         }
@@ -246,19 +248,19 @@ export const employeeService = {
       console.log(`🔄 Updating employee ID: ${employeeId}`);
       console.log('📡 API URL:', `http://localhost:8081/api/v1/settings/employees/${employeeId}`);
       console.log('📝 Employee Update Data:', JSON.stringify(employeeData, null, 2));
-      
+
       // Check authentication
       const token = localStorage.getItem('authToken');
       if (!token || token === 'undefined' || token === 'null') {
         throw new Error('No authentication token found. Please login first.');
       }
-      
+
       const response = await apiClient.put<AddEmployeeResponse>(`/settings/employees/${employeeId}`, employeeData);
-      
+
       console.log('✅ Employee Update API Response Status:', response.status);
       console.log('✅ Employee Update API Response:', response);
       console.log('📊 Employee Response data:', response.data);
-      
+
       if (response.status === 200 || response.status === 201) {
         // Backend uses 2001 for successful update, 2000 for success
         if (response.data && (response.data.statusCode === 2001 || response.data.statusCode === 2000 || response.data.statusCode === 200)) {
@@ -274,17 +276,17 @@ export const employeeService = {
     } catch (error) {
       console.error('❌ Error updating employee:', error);
       console.error('❌ Full error details:', JSON.stringify(error, null, 2));
-      
+
       if (error.response) {
         console.error('📋 Response status:', error.response.status);
         console.error('📋 Response headers:', error.response.headers);
         console.error('📋 Response data:', error.response.data);
-        
+
         // Handle specific error cases with detailed backend messages
         if (error.response.status === 400) {
           const responseData = error.response.data;
           console.log('🔍 Analyzing 400 error response:', responseData);
-          
+
           if (responseData?.data && Array.isArray(responseData.data) && responseData.data.length > 0) {
             console.log('📝 Validation errors found in data array:', responseData.data);
             responseData.data.forEach((error: any, index: number) => {
@@ -308,7 +310,7 @@ export const employeeService = {
         } else if (error.response.status === 401 || error.response.status === 403) {
           throw new Error('Authentication required. Please login to update employee.');
         }
-        
+
         throw new Error(`Failed to update employee: ${error.response.statusText}`);
       } else if (error.request) {
         console.error('📡 Request was made but no response received:', error.request);
@@ -324,18 +326,18 @@ export const employeeService = {
     try {
       console.log(`🗑️ Deleting employee ID: ${employeeId}`);
       console.log('📡 API URL:', `http://localhost:8081/api/v1/settings/employees/${employeeId}`);
-      
+
       // Check authentication
       const token = localStorage.getItem('authToken');
       if (!token || token === 'undefined' || token === 'null') {
         throw new Error('No authentication token found. Please login first.');
       }
-      
+
       const response = await apiClient.delete(`/settings/employees/${employeeId}`);
-      
+
       console.log('✅ Employee Delete API Response Status:', response.status);
       console.log('✅ Employee Delete API Response:', response);
-      
+
       if (response.status === 200 || response.status === 204) {
         console.log('🎉 Successfully deleted employee from backend database!');
         return;
@@ -345,22 +347,22 @@ export const employeeService = {
     } catch (error) {
       console.error('❌ Error deleting employee:', error);
       console.error('❌ Full error details:', JSON.stringify(error, null, 2));
-      
+
       if (error.response) {
         console.error('📋 Response status:', error.response.status);
         console.error('📋 Response data:', error.response.data);
-        
+
         if (error.response.status === 401 || error.response.status === 403) {
           throw new Error('Authentication required. Please login to delete employee.');
         } else if (error.response.status === 404) {
           throw new Error('Employee not found.');
         }
-        
+
         const responseData = error.response.data;
         if (responseData?.statusMessage) {
           throw new Error(responseData.statusMessage);
         }
-        
+
         throw new Error(`Failed to delete employee: ${error.response.statusText}`);
       } else if (error.request) {
         console.error('📡 Request was made but no response received:', error.request);
@@ -368,6 +370,78 @@ export const employeeService = {
       } else {
         throw new Error(error.message || 'Failed to delete employee.');
       }
+    }
+  },
+
+  // Get departments by company ID (Integration Task)
+  getDepartmentsByCompany: async (companyId: number): Promise<any[]> => {
+    try {
+      console.log(`🔄 Fetching departments for company ID: ${companyId}`);
+      // Use the correct endpoint without hardcoded companyId=1 like in departmentService
+      const response = await apiClient.get('/settings/department', {
+        params: { companyId: companyId, page: 0, size: 1000 }, // Fetch all
+      });
+      console.log('✅ Departments API Response:', response);
+      const data = response.data?.data;
+      if (data && data.content) {
+        return data.content.map((d: any) => ({
+          id: d.id,
+          name: d.name,
+          companyId: d.company_id?.toString()
+        }));
+      }
+      return [];
+    } catch (error) {
+      console.error(`❌ Error fetching departments for company ${companyId}:`, error);
+      throw error;
+    }
+  },
+
+  // Get all roles (Integration Task)
+  getAllRoles: async (): Promise<any[]> => {
+    try {
+      console.log('🔄 Fetching all roles...');
+      const response = await apiClient.get('/settings/roles/get', {
+        params: { page: 0, size: 1000 }
+      });
+      console.log('✅ Roles API Response:', response);
+      // Extract roles from response.data.data.roles
+      const roles = response.data?.data?.roles || [];
+      return roles;
+    } catch (error) {
+      console.error('❌ Error fetching roles:', error);
+      throw error;
+    }
+  },
+
+  // Get all designations (Integration Task)
+  getAllDesignations: async (): Promise<any[]> => {
+    try {
+      console.log('🔄 Fetching all designations...');
+      const response = await apiClient.get('/settings/designation', {
+        params: { page: 0, size: 1000 },
+      });
+      console.log('✅ Designations API Response:', response);
+      const payload = response.data;
+
+      let designations: any[] = [];
+      if (payload?.data?.content) {
+        designations = payload.data.content;
+      } else if (Array.isArray(payload?.data)) {
+        designations = payload.data;
+      } else if (Array.isArray(payload)) {
+        designations = payload;
+      }
+
+      // Normalize data if needed
+      return designations.map((d: any) => ({
+        ...d,
+        departmentId: d.department_id?.toString() || d.departmentId || d.department?.id?.toString(),
+      }));
+
+    } catch (error) {
+      console.error('❌ Error fetching designations:', error);
+      throw error;
     }
   }
 };
