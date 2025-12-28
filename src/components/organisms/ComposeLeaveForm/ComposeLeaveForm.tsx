@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
-import { User, LeaveType } from '@/types';
+import { useLeaveRequests } from '@/context/LeaveRequestContext';
+import { User, LeaveType, LeaveRequest, ApprovalStep } from '@/types';
 import { users, leaveBalances } from '@/data/mockData';
 import { UserAvatar } from '@/components/atoms/Avatar/UserAvatar';
 import { Button } from '@/components/ui/button';
@@ -12,7 +13,6 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { CalendarIcon, Send, X, Plus } from 'lucide-react';
 import { format, differenceInDays } from 'date-fns';
 import { cn } from '@/lib/utils';
@@ -27,20 +27,32 @@ const leaveTypes: { value: LeaveType; label: string }[] = [
   { value: 'unpaid', label: 'Unpaid Leave' },
 ];
 
-export const ComposeLeaveForm: React.FC = () => {
+interface ComposeLeaveFormProps {
+  initialData?: LeaveRequest;
+  onClose?: () => void;
+}
+
+export const ComposeLeaveForm: React.FC<ComposeLeaveFormProps> = ({ initialData, onClose }) => {
   const navigate = useNavigate();
   const { currentUser } = useAuth();
-  const [toRecipient, setToRecipient] = useState<User | null>(null);
-  const [ccRecipients, setCcRecipients] = useState<User[]>([]);
-  const [leaveType, setLeaveType] = useState<LeaveType>('annual');
-  const [startDate, setStartDate] = useState<Date>();
-  const [endDate, setEndDate] = useState<Date>();
-  const [reason, setReason] = useState('');
+  const { addLeaveRequest, updateLeaveRequest } = useLeaveRequests();
+
+  // Find initial users from IDs if editing
+  const initialToUser = initialData ? users.find(u => u.id === initialData.toRecipients[0]) || null : null;
+  const initialCcUsers = initialData ? users.filter(u => initialData.ccRecipients.includes(u.id)) : [];
+
+  const [toRecipient, setToRecipient] = useState<User | null>(initialToUser);
+  const [ccRecipients, setCcRecipients] = useState<User[]>(initialCcUsers);
+  const [leaveType, setLeaveType] = useState<LeaveType>(initialData?.leaveType || 'annual');
+  const [startDate, setStartDate] = useState<Date | undefined>(initialData ? new Date(initialData.startDate) : undefined);
+  const [endDate, setEndDate] = useState<Date | undefined>(initialData ? new Date(initialData.endDate) : undefined);
+  const [reason, setReason] = useState(initialData?.reason || '');
   const [showToSuggestions, setShowToSuggestions] = useState(false);
   const [showCcSuggestions, setShowCcSuggestions] = useState(false);
   const [searchTo, setSearchTo] = useState('');
   const [searchCc, setSearchCc] = useState('');
-  const [isHalfDay, setIsHalfDay] = useState(false);
+  // Check if it's a half day (0.5 days)
+  const [isHalfDay, setIsHalfDay] = useState(initialData ? initialData.days === 0.5 : false);
   const [halfDayType, setHalfDayType] = useState<'morning' | 'afternoon'>('morning');
 
   // Filter to show only HR/Admin users for To field
@@ -49,6 +61,7 @@ export const ComposeLeaveForm: React.FC = () => {
   const userBalances = leaveBalances.filter(b => b.userId === currentUser.id);
 
   const days = startDate && endDate ? differenceInDays(endDate, startDate) + 1 : 0;
+  const effectiveDays = isHalfDay ? 0.5 : days;
   const selectedBalance = userBalances.find(b => b.leaveType === leaveType);
   const availableDays = selectedBalance ? selectedBalance.total - selectedBalance.used - selectedBalance.pending : 0;
 
@@ -87,13 +100,83 @@ export const ComposeLeaveForm: React.FC = () => {
       toast.error('Please provide a reason for your leave');
       return;
     }
-    if (days > availableDays) {
+    if (effectiveDays > availableDays) {
       toast.error(`You only have ${availableDays} days available for ${leaveType} leave`);
       return;
     }
 
-    toast.success('Leave request submitted successfully!');
-    navigate('/my-leaves');
+    if (initialData) {
+      // Update existing request
+      updateLeaveRequest(initialData.id, {
+        leaveType,
+        startDate: format(startDate, 'yyyy-MM-dd'),
+        endDate: format(endDate, 'yyyy-MM-dd'),
+        days: isHalfDay ? 0.5 : days,
+        reason: reason.trim(),
+        toRecipients: [toRecipient.id],
+        ccRecipients: ccRecipients.map(cc => cc.id),
+        updatedAt: new Date().toISOString(),
+      });
+      toast.success('Leave request updated successfully!');
+    } else {
+      // Create approval steps
+      const steps: ApprovalStep[] = [
+        {
+          id: `step-${Date.now()}-1`,
+          approverId: toRecipient.id,
+          approverName: toRecipient.name,
+          approverRole: toRecipient.designation,
+          status: 'pending',
+          order: 1,
+        },
+      ];
+
+      // If the recipient is NOT Sarah Johnson (HR), add her as a second step
+      // ensuring we have a multi-step timeline like in the designs
+      const hrUser = users.find(u => u.id === 'user-1');
+      if (toRecipient.id !== 'user-1' && hrUser) {
+        steps.push({
+          id: `step-${Date.now()}-2`,
+          approverId: hrUser.id,
+          approverName: hrUser.name,
+          approverRole: hrUser.designation,
+          status: 'pending',
+          order: 2,
+        });
+      }
+
+      // Create new leave request
+      const newRequest: LeaveRequest = {
+        id: `req-${Date.now()}`,
+        employeeId: currentUser.id,
+        employeeName: currentUser.name,
+        leaveType,
+        startDate: format(startDate, 'yyyy-MM-dd'),
+        endDate: format(endDate, 'yyyy-MM-dd'),
+        days: isHalfDay ? 0.5 : days,
+        reason: reason.trim(),
+        status: 'pending',
+        toRecipients: [toRecipient.id],
+        ccRecipients: ccRecipients.map(cc => cc.id),
+        approvalSteps: steps,
+        currentStep: 1,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        permissions: {
+          canApprove: false,
+          canReject: false,
+          canCancel: true,
+        },
+      };
+      addLeaveRequest(newRequest);
+      toast.success('Leave request submitted successfully!');
+    }
+
+    if (onClose) {
+      onClose();
+    } else {
+      navigate('/my-leaves');
+    }
   };
 
   const filteredToUsers = availableHrUsers.filter(
@@ -332,10 +415,10 @@ export const ComposeLeaveForm: React.FC = () => {
           )}
         </div>
         <div className="flex gap-3">
-          <Button variant="outline" onClick={() => navigate(-1)}>Cancel</Button>
+          <Button variant="outline" onClick={onClose || (() => navigate(-1))}>Cancel</Button>
           <Button onClick={handleSubmit} className="gap-2">
             <Send className="w-4 h-4" />
-            Send Request
+            {initialData ? 'Update Request' : 'Send Request'}
           </Button>
         </div>
       </div>

@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { User, UserRole } from '@/types';
 import { users } from '@/data/mockData';
-import { defaultRolePermissions } from '@/data/permissions';
+import { defaultRolePermissions, permissions as initialPermissions, Permission } from '@/data/permissions';
 
 import { roles as initialRoles, Role } from '@/data/roles';
 
@@ -17,6 +17,8 @@ interface AuthContextType {
   addRole: (role: Role) => void;
   updateRole: (role: Role) => void;
   deleteRole: (roleId: string) => void;
+  permissions: Permission[];
+  addPermission: (permission: Permission) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -27,6 +29,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [rolePermissions, setRolePermissions] = useState<Record<UserRole, Set<string>>>(defaultRolePermissions);
   const [roles, setRoles] = useState<Role[]>([]);
+  const [permissions, setPermissions] = useState<Permission[]>(initialPermissions);
 
   // Load user from localStorage on mount
   useEffect(() => {
@@ -100,6 +103,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setRoles(prev => prev.filter(r => r.id !== roleId));
   };
 
+  // Permission Management Functions
+  const addPermission = (permission: Permission) => {
+    setPermissions(prev => [...prev, permission]);
+  };
+
   return (
     <AuthContext.Provider value={{
       currentUser,
@@ -112,7 +120,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       roles,
       addRole,
       updateRole,
-      deleteRole
+      deleteRole,
+      permissions,
+      addPermission
     }}>
       {children}
     </AuthContext.Provider>

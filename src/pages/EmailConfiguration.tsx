@@ -31,15 +31,15 @@ import {
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { DashboardLayout } from '@/components/templates/DashboardLayout/DashboardLayout';
-import { emailConfigurations as initialEmailConfigs, EmailConfiguration } from '@/data/emailConfig';
+import { emailConfigurations as initialEmailConfigs, EmailConfiguration as EmailConfigurationType } from '@/data/emailConfig';
 import { format } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 
 export const EmailConfiguration: React.FC = () => {
-    const [emailConfigs, setEmailConfigs] = useState<EmailConfiguration[]>(initialEmailConfigs);
+    const [emailConfigs, setEmailConfigs] = useState<EmailConfigurationType[]>(initialEmailConfigs);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-    const [selectedConfig, setSelectedConfig] = useState<EmailConfiguration | null>(null);
+    const [selectedConfig, setSelectedConfig] = useState<EmailConfigurationType | null>(null);
     const [showPassword, setShowPassword] = useState(false);
     const [enableCC, setEnableCC] = useState(false);
     const { toast } = useToast();
@@ -70,7 +70,7 @@ export const EmailConfiguration: React.FC = () => {
         setIsModalOpen(true);
     };
 
-    const handleOpenEditModal = (config: EmailConfiguration) => {
+    const handleOpenEditModal = (config: EmailConfigurationType) => {
         setSelectedConfig(config);
         setFormData({
             displayName: config.displayName,
@@ -114,7 +114,7 @@ export const EmailConfiguration: React.FC = () => {
             });
         } else {
             // Add new configuration
-            const newConfig: EmailConfiguration = {
+            const newConfig: EmailConfigurationType = {
                 id: String(Date.now()),
                 ...formData,
                 ccEmail: enableCC ? formData.ccEmail : undefined,
@@ -130,7 +130,7 @@ export const EmailConfiguration: React.FC = () => {
         handleCloseModal();
     };
 
-    const handleDelete = (config: EmailConfiguration) => {
+    const handleDelete = (config: EmailConfigurationType) => {
         setSelectedConfig(config);
         setIsDeleteDialogOpen(true);
     };

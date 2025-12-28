@@ -1,11 +1,12 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '@/context/AuthContext';
 import { LeaveRequest } from '@/types';
 import { StatusBadge } from '@/components/atoms/Badge/StatusBadge';
 import { LeaveTypeBadge } from '@/components/atoms/Badge/LeaveTypeBadge';
 import { UserAvatar } from '@/components/atoms/Avatar/UserAvatar';
 import { Button } from '@/components/ui/button';
-import { Calendar, Clock, ChevronRight, CheckCircle, XCircle } from 'lucide-react';
+import { Calendar, Clock, ChevronRight, CheckCircle, XCircle, Edit } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 
@@ -14,6 +15,8 @@ interface LeaveRequestCardProps {
   showActions?: boolean;
   onApprove?: (id: string) => void;
   onReject?: (id: string) => void;
+  onEdit?: (id: string) => void;
+  onCancel?: (id: string) => void;
   className?: string;
 }
 
@@ -22,11 +25,16 @@ export const LeaveRequestCard: React.FC<LeaveRequestCardProps> = ({
   showActions = false,
   onApprove,
   onReject,
+  onEdit,
+  onCancel,
   className,
 }) => {
   const navigate = useNavigate();
+  const { currentUser } = useAuth();
   const completedSteps = request.approvalSteps.filter(s => s.status !== 'pending').length;
   const totalSteps = request.approvalSteps.length;
+
+  const isOwner = currentUser.id === request.employeeId;
 
   return (
     <div
@@ -84,18 +92,57 @@ export const LeaveRequestCard: React.FC<LeaveRequestCardProps> = ({
           </div>
 
           <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
-            {request.permissions?.canCancel && (
-              <Button
-                size="sm"
-                variant="outline"
-                className="text-muted-foreground hover:text-foreground"
-                onClick={() => console.log('Cancel logic triggered for', request.id)} // Placeholder for cancel action
-                title="Cancel Request"
-              >
-                Cancel
-              </Button>
+            {/* Edit and Cancel buttons - only enabled when status is pending AND current user is the owner */}
+            {request.status === 'pending' && isOwner && (
+              <>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="gap-1.5 text-muted-foreground hover:text-foreground"
+                  onClick={() => onEdit?.(request.id)}
+                  title="Edit Request"
+                >
+                  <Edit className="w-4 h-4" />
+                  Edit
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="text-muted-foreground hover:text-foreground"
+                  onClick={() => onCancel?.(request.id)}
+                  title="Cancel Request"
+                >
+                  Cancel
+                </Button>
+              </>
             )}
 
+            {/* Disabled Edit and Cancel buttons when approved or rejected - only for owner */}
+            {(request.status === 'approved' || request.status === 'rejected') && isOwner && (
+              <>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="gap-1.5 opacity-50 cursor-not-allowed"
+                  disabled
+                  title="Cannot edit after approval/rejection"
+                >
+                  <Edit className="w-4 h-4" />
+                  Edit
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="opacity-50 cursor-not-allowed"
+                  disabled
+                  title="Cannot cancel after approval/rejection"
+                >
+                  Cancel
+                </Button>
+              </>
+            )}
+
+            {/* Approval action buttons for managers/admins */}
             {request.permissions?.canReject && (
               <Button
                 size="icon"
@@ -120,7 +167,7 @@ export const LeaveRequestCard: React.FC<LeaveRequestCardProps> = ({
             )}
 
             {/* Show chevron if no actions are available */}
-            {!request.permissions?.canApprove && !request.permissions?.canReject && !request.permissions?.canCancel && (
+            {!request.permissions?.canApprove && !request.permissions?.canReject && request.status !== 'pending' && request.status !== 'approved' && request.status !== 'rejected' && (
               <ChevronRight className="w-5 h-5 text-muted-foreground" />
             )}
           </div>
