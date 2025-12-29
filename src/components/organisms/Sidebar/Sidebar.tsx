@@ -35,6 +35,7 @@ import axios from 'axios';
 interface MenuItem {
   to?: string;
   label: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   icon: any;
   children?: MenuItem[];
   roles?: string[];

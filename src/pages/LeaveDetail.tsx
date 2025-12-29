@@ -6,7 +6,8 @@ import { StatusBadge } from '@/components/atoms/Badge/StatusBadge';
 import { LeaveTypeBadge } from '@/components/atoms/Badge/LeaveTypeBadge';
 import { UserAvatar } from '@/components/atoms/Avatar/UserAvatar';
 import { UserCard } from '@/components/molecules/UserCard/UserCard';
-import { leaveRequests, users } from '@/data/mockData';
+import { users } from '@/data/mockData';
+import { useLeaveRequests } from '@/context/LeaveRequestContext';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, Calendar, Clock, Mail, Users } from 'lucide-react';
 import { format } from 'date-fns';
@@ -14,6 +15,7 @@ import { format } from 'date-fns';
 export const LeaveDetail: React.FC = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { leaveRequests } = useLeaveRequests();
 
   const request = leaveRequests.find(r => r.id === id);
 
