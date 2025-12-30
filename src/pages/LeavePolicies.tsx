@@ -186,11 +186,13 @@ export const LeavePolicies: React.FC = () => {
 
   const handleDeletePolicy = async (policyId: string) => {
     try {
+      // Call the delete API
       await deleteLeavePolicy(parseInt(policyId));
 
-      // Immediately remove from view
+      // Immediately remove from the current view without refetching
       setPolicies(prev => prev.filter(p => p.id !== policyId));
 
+      // Show success message
       toast({
         title: "Success",
         description: "Policy deleted successfully",
