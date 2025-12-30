@@ -6,7 +6,7 @@ import { StatusBadge } from '@/components/atoms/Badge/StatusBadge';
 import { LeaveTypeBadge } from '@/components/atoms/Badge/LeaveTypeBadge';
 import { UserAvatar } from '@/components/atoms/Avatar/UserAvatar';
 import { Button } from '@/components/ui/button';
-import { Calendar, Clock, ChevronRight, CheckCircle, XCircle, Edit } from 'lucide-react';
+import { Calendar, Clock, ChevronRight, CheckCircle, XCircle, Edit, Trash2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 
@@ -92,8 +92,8 @@ export const LeaveRequestCard: React.FC<LeaveRequestCardProps> = ({
           </div>
 
           <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
-            {/* Edit and Cancel buttons - only enabled when status is pending AND current user is the owner */}
-            {request.status === 'pending' && isOwner && (
+            {/* Edit and Delete buttons - show for pending requests */}
+            {request.status === 'pending' && (
               <>
                 <Button
                   size="sm"
@@ -108,17 +108,18 @@ export const LeaveRequestCard: React.FC<LeaveRequestCardProps> = ({
                 <Button
                   size="sm"
                   variant="outline"
-                  className="text-muted-foreground hover:text-foreground"
+                  className="gap-1.5 text-destructive hover:text-white hover:bg-destructive"
                   onClick={() => onCancel?.(request.id)}
-                  title="Cancel Request"
+                  title="Delete Request"
                 >
-                  Cancel
+                  <Trash2 className="w-4 h-4" />
+                  Delete
                 </Button>
               </>
             )}
 
-            {/* Disabled Edit and Cancel buttons when approved or rejected - only for owner */}
-            {(request.status === 'approved' || request.status === 'rejected') && isOwner && (
+            {/* Disabled Edit and Delete buttons when approved or rejected */}
+            {(request.status === 'approved' || request.status === 'rejected') && (
               <>
                 <Button
                   size="sm"
@@ -133,11 +134,12 @@ export const LeaveRequestCard: React.FC<LeaveRequestCardProps> = ({
                 <Button
                   size="sm"
                   variant="outline"
-                  className="opacity-50 cursor-not-allowed"
+                  className="gap-1.5 opacity-50 cursor-not-allowed"
                   disabled
-                  title="Cannot cancel after approval/rejection"
+                  title="Cannot delete after approval/rejection"
                 >
-                  Cancel
+                  <Trash2 className="w-4 h-4" />
+                  Delete
                 </Button>
               </>
             )}

@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { useLeaveRequests } from '@/context/LeaveRequestContext';
-import { User, LeaveType, LeaveRequest, ApprovalStep } from '@/types';
+import { User, LeaveType, LeaveRequest, ApprovalStep, BackendEmployee } from '@/types';
 import { users, leaveBalances } from '@/data/mockData';
 import { UserAvatar } from '@/components/atoms/Avatar/UserAvatar';
 import { Button } from '@/components/ui/button';
@@ -13,10 +13,12 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
-import { CalendarIcon, Send, X, Plus } from 'lucide-react';
+import { CalendarIcon, Send, X, Plus, Loader2 } from 'lucide-react';
 import { format, differenceInDays } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
+import { getAllLeaveTypes, LeaveTypeResponseDto } from '@/components/services/leavetypeService';
+import { fetchToRecipient, fetchCcEmails, createLeaveRequest } from '@/components/services/leaveRequestService';
 
 const leaveTypes: { value: LeaveType; label: string }[] = [
   { value: 'annual', label: 'Annual Leave' },
@@ -37,12 +39,20 @@ export const ComposeLeaveForm: React.FC<ComposeLeaveFormProps> = ({ initialData,
   const { currentUser } = useAuth();
   const { addLeaveRequest, updateLeaveRequest } = useLeaveRequests();
 
+  // State for backend data
+  const [leaveTypesFromDB, setLeaveTypesFromDB] = useState<LeaveTypeResponseDto[]>([]);
+  const [toRecipientsFromDB, setToRecipientsFromDB] = useState<BackendEmployee[]>([]);
+  const [ccRecipientsFromDB, setCcRecipientsFromDB] = useState<BackendEmployee[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+
   // Find initial users from IDs if editing
   const initialToUser = initialData ? users.find(u => u.id === initialData.toRecipients[0]) || null : null;
   const initialCcUsers = initialData ? users.filter(u => initialData.ccRecipients.includes(u.id)) : [];
 
-  const [toRecipient, setToRecipient] = useState<User | null>(initialToUser);
-  const [ccRecipients, setCcRecipients] = useState<User[]>(initialCcUsers);
+  const [toRecipient, setToRecipient] = useState<BackendEmployee | null>(null);
+  const [ccRecipients, setCcRecipients] = useState<BackendEmployee[]>([]);
+  const [leaveTypeId, setLeaveTypeId] = useState<number | null>(null);
   const [leaveType, setLeaveType] = useState<LeaveType>(initialData?.leaveType || 'annual');
   const [startDate, setStartDate] = useState<Date | undefined>(initialData ? new Date(initialData.startDate) : undefined);
   const [endDate, setEndDate] = useState<Date | undefined>(initialData ? new Date(initialData.endDate) : undefined);
@@ -55,6 +65,41 @@ export const ComposeLeaveForm: React.FC<ComposeLeaveFormProps> = ({ initialData,
   const [isHalfDay, setIsHalfDay] = useState(initialData ? initialData.days === 0.5 : false);
   const [halfDayType, setHalfDayType] = useState<'morning' | 'afternoon'>('morning');
 
+  // Fetch leave types, TO recipients, and CC recipients from backend
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        
+        // Fetch leave types from database
+        const leaveTypesResponse = await getAllLeaveTypes(0, 100);
+        console.log("Leave Types Response:", leaveTypesResponse);
+        setLeaveTypesFromDB(leaveTypesResponse.content);
+
+        // Fetch TO recipients based on user's role and company
+        const toRecipients = await fetchToRecipient();
+        console.log("TO Recipients Final:", toRecipients);
+        setToRecipientsFromDB(toRecipients);
+
+        // Fetch CC recipients based on user's role and company
+        const ccRecipients = await fetchCcEmails();
+        console.log("CC Recipients Final:", ccRecipients);
+        setCcRecipientsFromDB(ccRecipients);
+
+        setLoading(false);
+      } catch (error: any) {
+        console.error('Error fetching data:', error);
+        toast.error('Failed to load form data. Please try again.');
+        // Ensure arrays are set even on error
+        setToRecipientsFromDB([]);
+        setCcRecipientsFromDB([]);
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, []);
+
   // Filter to show only HR/Admin users for To field
   const availableHrUsers = users.filter(u => u.id !== currentUser.id && (u.role === 'admin' || u.departmentId === 'dept-2'));
   const availableUsers = users.filter(u => u.id !== currentUser.id);
@@ -65,8 +110,8 @@ export const ComposeLeaveForm: React.FC<ComposeLeaveFormProps> = ({ initialData,
   const selectedBalance = userBalances.find(b => b.leaveType === leaveType);
   const availableDays = selectedBalance ? selectedBalance.total - selectedBalance.used - selectedBalance.pending : 0;
 
-  const setToRecipientAndClose = (user: User) => {
-    setToRecipient(user);
+  const setToRecipientAndClose = (employee: BackendEmployee) => {
+    setToRecipient(employee);
     setSearchTo('');
     setShowToSuggestions(false);
   };
@@ -75,21 +120,34 @@ export const ComposeLeaveForm: React.FC<ComposeLeaveFormProps> = ({ initialData,
     setToRecipient(null);
   };
 
-  const addCcRecipient = (user: User) => {
-    if (!ccRecipients.find(r => r.id === user.id) && user.id !== toRecipient?.id) {
-      setCcRecipients([...ccRecipients, user]);
+  const addCcRecipient = (employee: BackendEmployee) => {
+    if (!ccRecipients.find(r => r.id === employee.id) && employee.id !== toRecipient?.id) {
+      setCcRecipients([...ccRecipients, employee]);
     }
     setSearchCc('');
     setShowCcSuggestions(false);
   };
 
-  const removeCcRecipient = (userId: string) => {
-    setCcRecipients(ccRecipients.filter(r => r.id !== userId));
+  const removeCcRecipient = (employeeId: number) => {
+    setCcRecipients(ccRecipients.filter(r => r.id !== employeeId));
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
+    console.log('=== Form Submission Debug ===');
+    console.log('TO Recipient:', toRecipient);
+    console.log('CC Recipients:', ccRecipients);
+    console.log('Leave Type ID:', leaveTypeId);
+    
     if (!toRecipient) {
-      toast.error('Please add a recipient in the "To" field (HR email)');
+      toast.error('Please select a recipient in the "To" field');
+      return;
+    }
+    if (ccRecipients.length === 0) {
+      toast.error('Please add at least one CC recipient');
+      return;
+    }
+    if (!leaveTypeId) {
+      toast.error('Please select a leave type');
       return;
     }
     if (!startDate || !endDate) {
@@ -105,89 +163,105 @@ export const ComposeLeaveForm: React.FC<ComposeLeaveFormProps> = ({ initialData,
       return;
     }
 
-    if (initialData) {
-      // Update existing request
-      updateLeaveRequest(initialData.id, {
-        leaveType,
+    try {
+      setSubmitting(true);
+
+      // Prepare the payload
+      const payload = {
+        leaveTypeId: leaveTypeId,
         startDate: format(startDate, 'yyyy-MM-dd'),
         endDate: format(endDate, 'yyyy-MM-dd'),
-        days: isHalfDay ? 0.5 : days,
         reason: reason.trim(),
-        toRecipients: [toRecipient.id],
-        ccRecipients: ccRecipients.map(cc => cc.id),
-        updatedAt: new Date().toISOString(),
-      });
-      toast.success('Leave request updated successfully!');
-    } else {
-      // Create approval steps
-      const steps: ApprovalStep[] = [
-        {
-          id: `step-${Date.now()}-1`,
-          approverId: toRecipient.id,
-          approverName: toRecipient.name,
-          approverRole: toRecipient.designation,
-          status: 'pending',
-          order: 1,
-        },
-      ];
-
-      // If the recipient is NOT Sarah Johnson (HR), add her as a second step
-      // ensuring we have a multi-step timeline like in the designs
-      const hrUser = users.find(u => u.id === 'user-1');
-      if (toRecipient.id !== 'user-1' && hrUser) {
-        steps.push({
-          id: `step-${Date.now()}-2`,
-          approverId: hrUser.id,
-          approverName: hrUser.name,
-          approverRole: hrUser.designation,
-          status: 'pending',
-          order: 2,
-        });
-      }
-
-      // Create new leave request
-      const newRequest: LeaveRequest = {
-        id: `req-${Date.now()}`,
-        employeeId: currentUser.id,
-        employeeName: currentUser.name,
-        leaveType,
-        startDate: format(startDate, 'yyyy-MM-dd'),
-        endDate: format(endDate, 'yyyy-MM-dd'),
-        days: isHalfDay ? 0.5 : days,
-        reason: reason.trim(),
-        status: 'pending',
-        toRecipients: [toRecipient.id],
-        ccRecipients: ccRecipients.map(cc => cc.id),
-        approvalSteps: steps,
-        currentStep: 1,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        permissions: {
-          canApprove: false,
-          canReject: false,
-          canCancel: true,
-        },
+        halfDay: isHalfDay,
+        halfDayType: isHalfDay ? (halfDayType === 'morning' ? 'MORNING' as const : 'AFTERNOON' as const) : null,
+        toEmailEmployeeId: toRecipient.id,
+        ccEmailEmployeeIds: ccRecipients.map(cc => cc.id),
       };
-      addLeaveRequest(newRequest);
-      toast.success('Leave request submitted successfully!');
-    }
 
-    if (onClose) {
-      onClose();
-    } else {
-      navigate('/my-leaves');
+      console.log('=== Payload Being Sent ===');
+      console.log('Full Payload:', JSON.stringify(payload, null, 2));
+      console.log('CC Employee IDs:', payload.ccEmailEmployeeIds);
+
+      // Submit to backend
+      const response = await createLeaveRequest(payload);
+
+      if (response.statusCode === 2001) {
+        toast.success(response.statusMessage || 'Leave request submitted successfully!');
+        
+        // Optionally, update local state for UI consistency
+        if (!initialData) {
+          // Create approval steps for local context
+          const steps: ApprovalStep[] = [
+            {
+              id: `step-${Date.now()}-1`,
+              approverId: toRecipient.id.toString(),
+              approverName: `${toRecipient.firstName} ${toRecipient.lastName}`,
+              approverRole: 'Approver',
+              status: 'pending',
+              order: 1,
+            },
+          ];
+
+          const newRequest: LeaveRequest = {
+            id: `req-${response.data.id}`,
+            employeeId: currentUser.id,
+            employeeName: currentUser.name,
+            leaveType,
+            startDate: format(startDate, 'yyyy-MM-dd'),
+            endDate: format(endDate, 'yyyy-MM-dd'),
+            days: effectiveDays,
+            reason: reason.trim(),
+            status: 'pending',
+            toRecipients: [toRecipient.id.toString()],
+            ccRecipients: ccRecipients.map(cc => cc.id.toString()),
+            approvalSteps: steps,
+            currentStep: 1,
+            createdAt: response.data.createdAt,
+            updatedAt: response.data.updatedAt,
+            permissions: {
+              canApprove: false,
+              canReject: false,
+              canCancel: true,
+            },
+          };
+          addLeaveRequest(newRequest);
+        }
+
+        if (onClose) {
+          onClose();
+        } else {
+          navigate('/my-leaves');
+        }
+      }
+    } catch (error: any) {
+      console.error('Error submitting leave request:', error);
+      const errorMessage = error.response?.data?.statusMessage || 'Failed to submit leave request. Please try again.';
+      toast.error(errorMessage);
+    } finally {
+      setSubmitting(false);
     }
   };
 
-  const filteredToUsers = availableHrUsers.filter(
-    u => u.name.toLowerCase().includes(searchTo.toLowerCase())
-  );
+  const filteredToUsers = Array.isArray(toRecipientsFromDB) ? toRecipientsFromDB.filter(
+    emp => `${emp.firstName} ${emp.lastName}`.toLowerCase().includes(searchTo.toLowerCase())
+  ) : [];
 
-  const filteredCcUsers = availableUsers.filter(
-    u => u.name.toLowerCase().includes(searchCc.toLowerCase()) &&
-      !ccRecipients.find(r => r.id === u.id) &&
-      u.id !== toRecipient?.id
-  );
+  const filteredCcUsers = Array.isArray(ccRecipientsFromDB) ? ccRecipientsFromDB.filter(
+    emp => `${emp.firstName} ${emp.lastName}`.toLowerCase().includes(searchCc.toLowerCase()) &&
+      !ccRecipients.find(r => r.id === emp.id) &&
+      emp.id !== toRecipient?.id
+  ) : [];
+
+  if (loading) {
+    return (
+      <div className="bg-card border border-border rounded-xl overflow-hidden p-8 flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+          <p className="text-sm text-muted-foreground">Loading form data...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="bg-card border border-border rounded-xl overflow-hidden">
@@ -200,8 +274,8 @@ export const ComposeLeaveForm: React.FC<ComposeLeaveFormProps> = ({ initialData,
             <div className="flex flex-wrap gap-2 items-center">
               {toRecipient ? (
                 <div className="flex items-center gap-2 bg-primary/10 text-primary rounded-full pl-1 pr-2 py-1">
-                  <UserAvatar name={toRecipient.name} size="sm" />
-                  <span className="text-sm font-medium">{toRecipient.name}</span>
+                  <UserAvatar name={`${toRecipient.firstName} ${toRecipient.lastName}`} size="sm" />
+                  <span className="text-sm font-medium">{`${toRecipient.firstName} ${toRecipient.lastName}`}</span>
                   <button onClick={removeToRecipient} className="hover:text-destructive">
                     <X className="w-4 h-4" />
                   </button>
@@ -209,7 +283,7 @@ export const ComposeLeaveForm: React.FC<ComposeLeaveFormProps> = ({ initialData,
               ) : (
                 <div className="relative">
                   <Input
-                    placeholder="Add HR recipient..."
+                    placeholder="Add TO recipient..."
                     value={searchTo}
                     onChange={(e) => setSearchTo(e.target.value)}
                     onFocus={() => setShowToSuggestions(true)}
@@ -218,18 +292,18 @@ export const ComposeLeaveForm: React.FC<ComposeLeaveFormProps> = ({ initialData,
                   {showToSuggestions && (
                     <div className="absolute top-full left-0 mt-1 w-64 bg-popover border border-border rounded-lg shadow-lg z-50 max-h-48 overflow-auto">
                       {filteredToUsers.length === 0 ? (
-                        <p className="p-3 text-sm text-muted-foreground">No HR users found</p>
+                        <p className="p-3 text-sm text-muted-foreground">No recipients found</p>
                       ) : (
-                        filteredToUsers.map(user => (
+                        filteredToUsers.map(employee => (
                           <div
-                            key={user.id}
+                            key={employee.id}
                             className="flex items-center gap-2 p-2 hover:bg-accent cursor-pointer"
-                            onClick={() => setToRecipientAndClose(user)}
+                            onClick={() => setToRecipientAndClose(employee)}
                           >
-                            <UserAvatar name={user.name} size="sm" />
+                            <UserAvatar name={`${employee.firstName} ${employee.lastName}`} size="sm" />
                             <div>
-                              <p className="text-sm font-medium">{user.name}</p>
-                              <p className="text-xs text-muted-foreground">{user.designation}</p>
+                              <p className="text-sm font-medium">{`${employee.firstName} ${employee.lastName}`}</p>
+                              <p className="text-xs text-muted-foreground">{employee.email}</p>
                             </div>
                           </div>
                         ))
@@ -247,14 +321,14 @@ export const ComposeLeaveForm: React.FC<ComposeLeaveFormProps> = ({ initialData,
           <span className="text-sm text-muted-foreground font-medium w-12 pt-2">Cc:</span>
           <div className="flex-1">
             <div className="flex flex-wrap gap-2 items-center">
-              {ccRecipients.map(user => (
+              {ccRecipients.map(employee => (
                 <div
-                  key={user.id}
+                  key={employee.id}
                   className="flex items-center gap-2 bg-accent/50 rounded-full pl-1 pr-2 py-1"
                 >
-                  <UserAvatar name={user.name} size="sm" />
-                  <span className="text-sm font-medium">{user.name}</span>
-                  <button onClick={() => removeCcRecipient(user.id)} className="hover:text-destructive">
+                  <UserAvatar name={`${employee.firstName} ${employee.lastName}`} size="sm" />
+                  <span className="text-sm font-medium">{`${employee.firstName} ${employee.lastName}`}</span>
+                  <button onClick={() => removeCcRecipient(employee.id)} className="hover:text-destructive">
                     <X className="w-4 h-4" />
                   </button>
                 </div>
@@ -272,16 +346,16 @@ export const ComposeLeaveForm: React.FC<ComposeLeaveFormProps> = ({ initialData,
                     {filteredCcUsers.length === 0 ? (
                       <p className="p-3 text-sm text-muted-foreground">No users found</p>
                     ) : (
-                      filteredCcUsers.map(user => (
+                      filteredCcUsers.map(employee => (
                         <div
-                          key={user.id}
+                          key={employee.id}
                           className="flex items-center gap-2 p-2 hover:bg-accent cursor-pointer"
-                          onClick={() => addCcRecipient(user)}
+                          onClick={() => addCcRecipient(employee)}
                         >
-                          <UserAvatar name={user.name} size="sm" />
+                          <UserAvatar name={`${employee.firstName} ${employee.lastName}`} size="sm" />
                           <div>
-                            <p className="text-sm font-medium">{user.name}</p>
-                            <p className="text-xs text-muted-foreground">{user.designation}</p>
+                            <p className="text-sm font-medium">{`${employee.firstName} ${employee.lastName}`}</p>
+                            <p className="text-xs text-muted-foreground">{employee.email}</p>
                           </div>
                         </div>
                       ))
@@ -299,13 +373,36 @@ export const ComposeLeaveForm: React.FC<ComposeLeaveFormProps> = ({ initialData,
             <Label htmlFor="leave-type" className="text-muted-foreground text-sm">
               <span className="text-red-500">*</span> Leave Type
             </Label>
-            <Select value={leaveType} onValueChange={(v) => setLeaveType(v as LeaveType)}>
+            <Select 
+              value={leaveTypeId?.toString()} 
+              onValueChange={(v) => {
+                const selectedId = parseInt(v);
+                setLeaveTypeId(selectedId);
+                // Map leave type for local UI consistency
+                const selectedLeaveType = leaveTypesFromDB.find(lt => lt.id === selectedId);
+                if (selectedLeaveType) {
+                  // Map backend leave type to frontend LeaveType
+                  const typeMap: Record<string, LeaveType> = {
+                    'annual leave': 'annual',
+                    'casual leave': 'casual',
+                    'sick leave': 'sick',
+                    'maternity leave': 'maternity',
+                    'paternity leave': 'paternity',
+                    'unpaid leave': 'unpaid',
+                  };
+                  const mappedType = typeMap[selectedLeaveType.leaveType.toLowerCase()] || 'annual';
+                  setLeaveType(mappedType);
+                }
+              }}
+            >
               <SelectTrigger id="leave-type">
                 <SelectValue placeholder="Select leave type" />
               </SelectTrigger>
               <SelectContent>
-                {leaveTypes.map(type => (
-                  <SelectItem key={type.value} value={type.value}>{type.label}</SelectItem>
+                {leaveTypesFromDB.map(type => (
+                  <SelectItem key={type.id} value={type.id.toString()}>
+                    {type.leaveType}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -415,10 +512,19 @@ export const ComposeLeaveForm: React.FC<ComposeLeaveFormProps> = ({ initialData,
           )}
         </div>
         <div className="flex gap-3">
-          <Button variant="outline" onClick={onClose || (() => navigate(-1))}>Cancel</Button>
-          <Button onClick={handleSubmit} className="gap-2">
-            <Send className="w-4 h-4" />
-            {initialData ? 'Update Request' : 'Send Request'}
+          <Button variant="outline" onClick={onClose || (() => navigate(-1))} disabled={submitting}>Cancel</Button>
+          <Button onClick={handleSubmit} className="gap-2" disabled={submitting}>
+            {submitting ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Submitting...
+              </>
+            ) : (
+              <>
+                <Send className="w-4 h-4" />
+                {initialData ? 'Update Request' : 'Send Request'}
+              </>
+            )}
           </Button>
         </div>
       </div>
