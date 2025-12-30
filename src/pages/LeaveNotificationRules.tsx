@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { DashboardLayout } from '@/components/templates/DashboardLayout/DashboardLayout';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -12,75 +12,96 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { useAuth } from '@/context/AuthContext';
-import { companies } from '@/data/companies';
 import { Info } from 'lucide-react';
+import { getAllCompanies, CompanyResponse } from '@/components/services/companyService';
+import { roleService, Role } from '@/components/services/roleService';
+import apiClient from '@/components/services/apiClient'; // Your axios instance with JWT interceptor
 
-interface RoleCCConfig {
-    [roleKey: string]: string[]; // Role name -> Array of CC role names
+interface CcConfiguration {
+    forRoleId: number;
+    ccRoleIds: number[];
 }
 
 interface NotificationConfig {
     companyId: string;
     primaryRecipient: string;
-    roleCCConfigs: RoleCCConfig;
+    roleCCConfigs: { [roleName: string]: string[] };
 }
 
 export const LeaveNotificationRules: React.FC = () => {
-    const { roles } = useAuth();
     const { toast } = useToast();
 
-    const [selectedCompany, setSelectedCompany] = useState<string>(companies[0]?.id || '');
+    const [companies, setCompanies] = useState<CompanyResponse[]>([]);
+    const [roles, setRoles] = useState<Role[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [selectedCompany, setSelectedCompany] = useState<string>('');
     const [selectedCCRole, setSelectedCCRole] = useState<string>('');
     const [config, setConfig] = useState<NotificationConfig>({
-        companyId: companies[0]?.id || '',
+        companyId: '',
         primaryRecipient: '',
         roleCCConfigs: {},
     });
 
-    // Get role names from the roles added by users
-    const availableRoles = roles.map(role => role.name);
+    // Fetch companies + roles
+    useEffect(() => {
+        const fetchData = async () => {
+            try {
+                setLoading(true);
+                const [companyData, roleData] = await Promise.all([
+                    getAllCompanies(),
+                    roleService.getAllRoles(),
+                ]);
 
-    // Set default selected CC role when roles are available
-    React.useEffect(() => {
-        if (availableRoles.length > 0 && !selectedCCRole) {
-            setSelectedCCRole(availableRoles[0]);
-        }
-    }, [availableRoles, selectedCCRole]);
+                setCompanies(companyData);
+                setRoles(roleData);
+
+                if (companyData.length > 0) {
+                    const firstId = companyData[0].id;
+                    setSelectedCompany(firstId);
+                    setConfig(prev => ({ ...prev, companyId: firstId }));
+                }
+
+                if (roleData.length > 0) {
+                    setSelectedCCRole(roleData[0].name);
+                }
+            } catch (error) {
+                toast({
+                    title: 'Error',
+                    description: 'Failed to load companies or roles.',
+                    variant: 'destructive',
+                });
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchData();
+    }, [toast]);
 
     const handlePrimaryRecipientChange = (value: string) => {
-        setConfig(prev => ({
-            ...prev,
-            primaryRecipient: value,
-        }));
+        setConfig(prev => ({ ...prev, primaryRecipient: value }));
     };
 
     const handleCCToggle = (ccRoleName: string, checked: boolean) => {
         setConfig(prev => {
-            const currentCCs = prev.roleCCConfigs[selectedCCRole] || [];
-            const updatedCCs = checked
-                ? [...currentCCs, ccRoleName]
-                : currentCCs.filter(r => r !== ccRoleName);
+            const current = prev.roleCCConfigs[selectedCCRole] || [];
+            const updated = checked
+                ? [...current, ccRoleName]
+                : current.filter(r => r !== ccRoleName);
 
             return {
                 ...prev,
-                roleCCConfigs: {
-                    ...prev.roleCCConfigs,
-                    [selectedCCRole]: updatedCCs,
-                },
+                roleCCConfigs: { ...prev.roleCCConfigs, [selectedCCRole]: updated },
             };
         });
     };
 
     const handleCompanyChange = (companyId: string) => {
         setSelectedCompany(companyId);
-        setConfig(prev => ({
-            ...prev,
-            companyId,
-        }));
+        setConfig(prev => ({ ...prev, companyId }));
     };
 
-    const handleSaveConfiguration = () => {
+    const handleSaveConfiguration = async () => {
         if (!config.primaryRecipient) {
             toast({
                 title: 'Validation Error',
@@ -90,14 +111,89 @@ export const LeaveNotificationRules: React.FC = () => {
             return;
         }
 
-        toast({
-            title: 'Success',
-            description: 'Leave notification configuration has been saved successfully.',
-        });
+        try {
+            // Role name → ID map
+            const roleNameToId = new Map<string, number>();
+            roles.forEach(role => roleNameToId.set(role.name, role.id));
+
+            const toRoleId = roleNameToId.get(config.primaryRecipient);
+            if (!toRoleId) throw new Error('Primary role not found');
+
+            // Build ccConfigurations
+            const ccConfigurations: CcConfiguration[] = Object.entries(config.roleCCConfigs)
+                .filter(([, ccs]) => ccs.length > 0)
+                .map(([forRoleName, ccNames]) => {
+                    const forRoleId = roleNameToId.get(forRoleName);
+                    if (!forRoleId) throw new Error(`For role not found: ${forRoleName}`);
+
+                    const ccRoleIds = ccNames.map(name => {
+                        const id = roleNameToId.get(name);
+                        if (!id) throw new Error(`CC role not found: ${name}`);
+                        return id;
+                    });
+
+                    return { forRoleId, ccRoleIds };
+                });
+
+            const payload = {
+                companyId: parseInt(config.companyId),
+                toRoleId,
+                ccConfigurations,
+            };
+
+            // Real API call using your apiClient (with JWT)
+            const response = await apiClient.post(
+                '/leavemanagement/notification-config/add',
+                payload
+            );
+
+            // Success toast
+            toast({
+                title: 'Success',
+                description: response.data?.message || 'Configuration saved successfully!',
+            });
+        } catch (error: any) {
+            let message = 'Failed to save configuration. Please try again.';
+
+            if (error.response) {
+                // Extract backend message from ResponseWrapper
+                message = error.response.data?.message 
+                    || error.response.data?.error 
+                    || `Server error: ${error.response.status}`;
+            } else if (error.request) {
+                message = 'No response from server. Check network or backend.';
+            }
+
+            toast({
+                title: 'Error',
+                description: message,
+                variant: 'destructive',
+            });
+            console.error('Save error:', error);
+        }
     };
 
-    const selectedCompanyData = companies.find(c => c.id === selectedCompany);
     const currentCCRoles = config.roleCCConfigs[selectedCCRole] || [];
+
+    if (loading) {
+        return (
+            <DashboardLayout title="Leave Notification Configuration" subtitle="...">
+                <div className="flex items-center justify-center h-64">
+                    <p className="text-gray-500">Loading...</p>
+                </div>
+            </DashboardLayout>
+        );
+    }
+
+    if (companies.length === 0 || roles.length === 0) {
+        return (
+            <DashboardLayout title="Leave Notification Configuration" subtitle="...">
+                <div className="flex items-center justify-center h-64">
+                    <p className="text-gray-500">No data available. Add companies/roles first.</p>
+                </div>
+            </DashboardLayout>
+        );
+    }
 
     return (
         <DashboardLayout
@@ -108,7 +204,7 @@ export const LeaveNotificationRules: React.FC = () => {
                 {/* Company Selector */}
                 <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-6">
                     <div className="flex items-center gap-4">
-                        <Label htmlFor="company-select" className="text-sm font-medium text-gray-700 whitespace-nowrap">
+                        <Label className="text-sm font-medium text-gray-700 whitespace-nowrap">
                             Select Company:
                         </Label>
                         <Select value={selectedCompany} onValueChange={handleCompanyChange}>
@@ -116,9 +212,9 @@ export const LeaveNotificationRules: React.FC = () => {
                                 <SelectValue placeholder="Select a company" />
                             </SelectTrigger>
                             <SelectContent>
-                                {companies.map(company => (
-                                    <SelectItem key={company.id} value={company.id}>
-                                        {company.name}
+                                {companies.map(c => (
+                                    <SelectItem key={c.id} value={c.id}>
+                                        {c.name}
                                     </SelectItem>
                                 ))}
                             </SelectContent>
@@ -126,50 +222,35 @@ export const LeaveNotificationRules: React.FC = () => {
                     </div>
                 </div>
 
-                {/* Main Configuration Card */}
+                {/* Main Card - TO + CC + Preview + Save */}
                 <div className="bg-white rounded-lg border border-gray-200 shadow-sm">
                     <div className="grid md:grid-cols-2 gap-6 p-6">
-                        {/* TO (Primary Recipient) Section */}
+                        {/* TO Section */}
                         <div className="border-r border-gray-200 pr-6">
-                            <h3 className="text-base font-semibold text-gray-900 mb-2">
-                                TO (Primary Recipient)
-                            </h3>
+                            <h3 className="text-base font-semibold mb-2">TO (Primary Recipient)</h3>
                             <p className="text-sm text-gray-600 mb-4">
                                 Select the primary recipient for leave requests:
                             </p>
-
-                            <RadioGroup
-                                value={config.primaryRecipient}
-                                onValueChange={handlePrimaryRecipientChange}
-                            >
+                            <RadioGroup value={config.primaryRecipient} onValueChange={handlePrimaryRecipientChange}>
                                 <div className="space-y-3">
-                                    {availableRoles.map(roleName => (
-                                        <div key={roleName} className="flex items-center space-x-2">
-                                            <RadioGroupItem value={roleName} id={`to-${roleName}`} />
-                                            <Label
-                                                htmlFor={`to-${roleName}`}
-                                                className="text-sm font-normal cursor-pointer"
-                                            >
-                                                {roleName}
-                                            </Label>
+                                    {roles.map(role => (
+                                        <div key={role.id} className="flex items-center space-x-2">
+                                            <RadioGroupItem value={role.name} id={`to-${role.name}`} />
+                                            <Label htmlFor={`to-${role.name}`}>{role.name}</Label>
                                         </div>
                                     ))}
                                 </div>
                             </RadioGroup>
                         </div>
 
-                        {/* CC (Informational Recipients) Section */}
+                        {/* CC Section */}
                         <div className="pl-6 md:pl-0">
-                            <h3 className="text-base font-semibold text-gray-900 mb-2">
-                                CC (Informational Recipients)
-                            </h3>
+                            <h3 className="text-base font-semibold mb-2">CC (Informational Recipients)</h3>
                             <p className="text-sm text-gray-600 mb-2">
-                                Select additional recipients to be copied on leave requests:
+                                Select additional recipients:
                             </p>
-
-                            {/* Role Selector for CC */}
                             <div className="mb-4">
-                                <Label htmlFor="cc-role-select" className="text-sm font-medium text-gray-700 mb-2 block">
+                                <Label className="text-sm font-medium mb-2 block">
                                     Configure CC for role:
                                 </Label>
                                 <Select value={selectedCCRole} onValueChange={setSelectedCCRole}>
@@ -177,37 +258,33 @@ export const LeaveNotificationRules: React.FC = () => {
                                         <SelectValue placeholder="Select a role" />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        {availableRoles.map(roleName => (
-                                            <SelectItem key={roleName} value={roleName}>
-                                                {roleName}
+                                        {roles.map(role => (
+                                            <SelectItem key={role.id} value={role.name}>
+                                                {role.name}
                                             </SelectItem>
                                         ))}
                                     </SelectContent>
                                 </Select>
                             </div>
 
-                            {/* CC Role Checkboxes */}
                             {selectedCCRole && (
                                 <div className="space-y-3">
                                     <p className="text-xs text-gray-500 mb-2">
                                         When <span className="font-semibold">{selectedCCRole}</span> requests leave, CC to:
                                     </p>
-                                    {availableRoles
-                                        .filter(roleName => roleName !== selectedCCRole)
-                                        .map(roleName => (
-                                            <div key={roleName} className="flex items-center space-x-2">
+                                    {roles
+                                        .filter(r => r.name !== selectedCCRole)
+                                        .map(role => (
+                                            <div key={role.id} className="flex items-center space-x-2">
                                                 <Checkbox
-                                                    id={`cc-${selectedCCRole}-${roleName}`}
-                                                    checked={currentCCRoles.includes(roleName)}
-                                                    onCheckedChange={(checked) =>
-                                                        handleCCToggle(roleName, checked as boolean)
+                                                    id={`cc-${selectedCCRole}-${role.name}`}
+                                                    checked={currentCCRoles.includes(role.name)}
+                                                    onCheckedChange={checked =>
+                                                        handleCCToggle(role.name, checked as boolean)
                                                     }
                                                 />
-                                                <Label
-                                                    htmlFor={`cc-${selectedCCRole}-${roleName}`}
-                                                    className="text-sm font-normal cursor-pointer"
-                                                >
-                                                    {roleName}
+                                                <Label htmlFor={`cc-${selectedCCRole}-${role.name}`}>
+                                                    {role.name}
                                                 </Label>
                                             </div>
                                         ))}
@@ -216,27 +293,29 @@ export const LeaveNotificationRules: React.FC = () => {
                         </div>
                     </div>
 
-                    {/* Preview Section */}
+                    {/* Preview */}
                     <div className="border-t border-gray-200 bg-gray-50 p-6">
                         <div className="flex items-start gap-2">
-                            <Info className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
+                            <Info className="w-5 h-5 text-blue-600 mt-0.5" />
                             <div className="flex-1">
-                                <h4 className="text-sm font-semibold text-gray-900 mb-2">Preview</h4>
+                                <h4 className="text-sm font-semibold mb-2">Preview</h4>
                                 <div className="text-sm text-gray-700 space-y-2">
                                     <p>
-                                        <span className="font-medium">Primary Recipient:</span> {config.primaryRecipient || 'Not selected'}
+                                        <span className="font-medium">Primary Recipient:</span>{' '}
+                                        {config.primaryRecipient || 'Not selected'}
                                     </p>
                                     <div>
                                         <p className="font-medium mb-1">CC Configuration by Role:</p>
                                         {Object.keys(config.roleCCConfigs).length > 0 ? (
                                             <ul className="list-disc list-inside space-y-1 ml-2">
-                                                {Object.entries(config.roleCCConfigs).map(([role, ccs]) => (
+                                                {Object.entries(config.roleCCConfigs).map(([role, ccs]) =>
                                                     ccs.length > 0 && (
                                                         <li key={role}>
-                                                            <span className="font-medium">{role}:</span> {ccs.join(', ')}
+                                                            <span className="font-medium">{role}:</span>{' '}
+                                                            {ccs.join(', ')}
                                                         </li>
                                                     )
-                                                ))}
+                                                )}
                                             </ul>
                                         ) : (
                                             <p className="text-gray-500 ml-2">No CC configurations set</p>
