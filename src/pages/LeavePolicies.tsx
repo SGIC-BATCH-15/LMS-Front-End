@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { DashboardLayout } from '@/components/templates/DashboardLayout/DashboardLayout';
-import { leavePolicies as initialPolicies } from '@/data/mockData';
 import { LeaveTypeBadge } from '@/components/atoms/Badge/LeaveTypeBadge';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from '@/components/ui/dialog';
@@ -11,6 +11,15 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Plus, Pencil, Trash2, RefreshCw } from 'lucide-react';
 import { LeavePolicy, LeaveType } from '@/types';
+import {
+  getAllLeavePolicies,
+  addLeavePolicy,
+  updateLeavePolicy,
+  deleteLeavePolicy,
+  BackendLeavePolicyRequest
+} from '@/components/services/leavePoliciesServices';
+import { getAllLeaveTypes, LeaveTypeResponseDto } from '@/components/services/leavetypeService';
+import { useToast } from "@/components/ui/use-toast";
 
 interface PolicyFormData {
   leaveType: LeaveType;
@@ -30,12 +39,65 @@ const initialFormData: PolicyFormData = {
   maxCarryForward: 0,
 };
 
+const KNOWN_LEAVE_TYPES = ['annual', 'casual', 'sick', 'maternity', 'paternity', 'unpaid'];
+
 export const LeavePolicies: React.FC = () => {
   const [filterType, setFilterType] = useState('all');
-  const [policies, setPolicies] = useState<LeavePolicy[]>(initialPolicies);
+  const [policies, setPolicies] = useState<LeavePolicy[]>([]);
   const [formData, setFormData] = useState<PolicyFormData>(initialFormData);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingPolicy, setEditingPolicy] = useState<LeavePolicy | null>(null);
+  const [leaveTypes, setLeaveTypes] = useState<LeaveTypeResponseDto[]>([]);
+
+  // Pagination State
+  const [page, setPage] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
+  const pageSize = 5;
+
+  const { toast } = useToast();
+
+  useEffect(() => {
+    fetchPolicies();
+    fetchLeaveTypes();
+  }, [page]);
+
+  const fetchLeaveTypes = async () => {
+    try {
+      const response = await getAllLeaveTypes(0, 100);
+      if (response && response.content) {
+        setLeaveTypes(response.content);
+      }
+    } catch (error) {
+      console.error("Failed to fetch leave types", error);
+    }
+  };
+
+  const fetchPolicies = async () => {
+    try {
+      // Logic for filtering is now handled in the service layer using strict verification
+      const response = await getAllLeavePolicies(page, pageSize);
+      if (response.data && response.data.content) {
+        const mappedPolicies: LeavePolicy[] = response.data.content.map((p) => ({
+          id: p.id.toString(),
+          leaveType: (p.leaveType.leaveType.toLowerCase() as LeaveType),
+          minExperience: p.minExperience,
+          maxExperience: p.maxExperience,
+          daysAllowed: p.daysAllowed,
+          carryForward: p.carryForwardAllowed,
+          maxCarryForward: p.maxCarryForwardDays || 0,
+        }));
+        setPolicies(mappedPolicies);
+        setTotalPages(response.data.totalPages);
+      }
+    } catch (error) {
+      console.error("Failed to fetch policies", error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to fetch policies",
+      });
+    }
+  };
 
   const filteredPolicies = policies.filter(policy => {
     const matchesType = filterType === 'all' || policy.leaveType === filterType;
@@ -49,37 +111,58 @@ export const LeavePolicies: React.FC = () => {
     }));
   };
 
-  const handleSubmit = () => {
-    if (editingPolicy) {
-      // Update existing policy
-      const updatedPolicy: LeavePolicy = {
-        ...editingPolicy,
-        leaveType: formData.leaveType,
-        minExperience: formData.minExperience,
-        maxExperience: formData.maxExperience,
-        daysAllowed: formData.daysAllowed,
-        carryForward: formData.carryForward,
-        maxCarryForward: formData.carryForward ? formData.maxCarryForward : 0,
-      };
+  const getLeaveTypeIdByName = (name: string): number | undefined => {
+    const found = leaveTypes.find(lt => lt.leaveType === name) ||
+      leaveTypes.find(lt => lt.leaveType.toLowerCase() === name.toLowerCase());
+    return found?.id;
+  };
 
-      setPolicies(prev => prev.map(p => p.id === editingPolicy.id ? updatedPolicy : p));
-    } else {
-      // Create new policy
-      const newPolicy: LeavePolicy = {
-        id: `policy-${Date.now()}`,
-        leaveType: formData.leaveType,
-        minExperience: formData.minExperience,
-        maxExperience: formData.maxExperience,
-        daysAllowed: formData.daysAllowed,
-        carryForward: formData.carryForward,
-        maxCarryForward: formData.carryForward ? formData.maxCarryForward : 0,
-      };
-      setPolicies(prev => [...prev, newPolicy]);
+  const handleSubmit = async () => {
+    const leaveTypeId = getLeaveTypeIdByName(formData.leaveType);
+    if (!leaveTypeId) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Invalid Leave Type Selected",
+      });
+      return;
     }
 
-    setFormData(initialFormData);
-    setIsDialogOpen(false);
-    setEditingPolicy(null);
+    const payload: BackendLeavePolicyRequest = {
+      leaveTypeId: leaveTypeId,
+      minExperience: formData.minExperience,
+      maxExperience: formData.maxExperience,
+      daysAllowed: formData.daysAllowed,
+      carryForwardAllowed: formData.carryForward,
+      maxCarryForwardDays: formData.carryForward ? formData.maxCarryForward : 0,
+    };
+
+    try {
+      if (editingPolicy) {
+        await updateLeavePolicy(parseInt(editingPolicy.id), payload);
+        toast({
+          title: "Success",
+          description: "Policy updated successfully",
+        });
+      } else {
+        await addLeavePolicy(payload);
+        toast({
+          title: "Success",
+          description: "Policy added successfully",
+        });
+      }
+      fetchPolicies();
+      setFormData(initialFormData);
+      setIsDialogOpen(false);
+      setEditingPolicy(null);
+    } catch (error) {
+      console.error("Error saving policy", error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to save policy",
+      });
+    }
   };
 
   const handleEditPolicy = (policy: LeavePolicy) => {
@@ -101,8 +184,25 @@ export const LeavePolicies: React.FC = () => {
     setIsDialogOpen(true);
   };
 
-  const handleDeletePolicy = (policyId: string) => {
-    setPolicies(prev => prev.filter(policy => policy.id !== policyId));
+  const handleDeletePolicy = async (policyId: string) => {
+    try {
+      await deleteLeavePolicy(parseInt(policyId));
+
+      // Immediately remove from view
+      setPolicies(prev => prev.filter(p => p.id !== policyId));
+
+      toast({
+        title: "Success",
+        description: "Policy deleted successfully",
+      });
+    } catch (error) {
+      console.error("Failed to delete policy", error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to delete policy",
+      });
+    }
   };
 
   return (
@@ -117,12 +217,9 @@ export const LeavePolicies: React.FC = () => {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Types</SelectItem>
-                <SelectItem value="annual">Annual</SelectItem>
-                <SelectItem value="casual">Casual</SelectItem>
-                <SelectItem value="sick">Sick</SelectItem>
-                <SelectItem value="maternity">Maternity</SelectItem>
-                <SelectItem value="paternity">Paternity</SelectItem>
-                <SelectItem value="unpaid">Unpaid</SelectItem>
+                {leaveTypes.map(lt => (
+                  <SelectItem key={lt.id} value={lt.leaveType.toLowerCase()}>{lt.leaveType}</SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
@@ -155,12 +252,9 @@ export const LeavePolicies: React.FC = () => {
                       <SelectValue placeholder="Select leave type" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="annual">Annual</SelectItem>
-                      <SelectItem value="casual">Casual</SelectItem>
-                      <SelectItem value="sick">Sick</SelectItem>
-                      <SelectItem value="maternity">Maternity</SelectItem>
-                      <SelectItem value="paternity">Paternity</SelectItem>
-                      <SelectItem value="unpaid">Unpaid</SelectItem>
+                      {leaveTypes.map(lt => (
+                        <SelectItem key={lt.id} value={lt.leaveType.toLowerCase()}>{lt.leaveType}</SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -253,7 +347,11 @@ export const LeavePolicies: React.FC = () => {
               {filteredPolicies.map(policy => (
                 <TableRow key={policy.id}>
                   <TableCell>
-                    <LeaveTypeBadge type={policy.leaveType} size="sm" />
+                    {KNOWN_LEAVE_TYPES.includes(policy.leaveType) ? (
+                      <LeaveTypeBadge type={policy.leaveType} size="sm" />
+                    ) : (
+                      <Badge variant="outline" className="capitalize">{policy.leaveType}</Badge>
+                    )}
                   </TableCell>
                   {/* Role cell removed */}
                   <TableCell>
@@ -286,6 +384,29 @@ export const LeavePolicies: React.FC = () => {
               ))}
             </TableBody>
           </Table>
+
+          {/* Pagination Controls */}
+          <div className="flex items-center justify-end space-x-2 p-4">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setPage(p => Math.max(0, p - 1))}
+              disabled={page === 0}
+            >
+              Previous
+            </Button>
+            <span className="text-sm text-muted-foreground">
+              Page {page + 1} of {totalPages || 1}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))}
+              disabled={page >= totalPages - 1} // Limit to calculated pages
+            >
+              Next
+            </Button>
+          </div>
         </div>
       </div>
     </DashboardLayout>
