@@ -41,7 +41,7 @@ export const Departments: React.FC = () => {
             // Backend returns Page, we need content
             const content = data.content || [];
             // Filter to only show company with ID 1
-            const filteredCompanies = content.filter((company: Company) => company.id === '1' || company.id === 1);
+            const filteredCompanies = content.filter((company: Company) => company.id.toString() === '1');
             setCompanies(filteredCompanies);
             return filteredCompanies;
         } catch (error) {
@@ -65,6 +65,8 @@ export const Departments: React.FC = () => {
                 const content = data.content || [];
                 allDepts = [...allDepts, ...content];
             }
+            // Sort departments with newest first (reverse order by ID)
+            allDepts.sort((a, b) => parseInt(b.id) - parseInt(a.id));
             setDepartments(allDepts);
         } catch (error) {
             console.error("Failed to fetch departments", error);
@@ -169,7 +171,7 @@ export const Departments: React.FC = () => {
     };
 
     const handleDelete = async (id: string) => {
-        if (window.confirm('Are you sure you want to delete this department?')) {
+        if (window.confirm('Are you sure you want to delete this department? This action cannot be undone.')) {
             try {
                 await departmentService.deleteDepartment(id);
                 toast({
@@ -182,7 +184,7 @@ export const Departments: React.FC = () => {
             } catch (error) {
                 toast({
                     title: 'Error',
-                    description: 'Failed to delete department',
+                    description: 'Failed to delete department. Please try again.',
                     variant: 'destructive',
                 });
             }
@@ -278,7 +280,7 @@ export const Departments: React.FC = () => {
                                 <TableRow>
                                     <TableHead>Department Name</TableHead>
                                     <TableHead>Company</TableHead>
-                                    <TableHead className="text-right">Actions</TableHead>
+                                    <TableHead className="text-center">Actions</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -286,8 +288,8 @@ export const Departments: React.FC = () => {
                                     <TableRow key={dept.id}>
                                         <TableCell className="font-medium">{dept.name}</TableCell>
                                         <TableCell>{getCompanyName(dept.companyId)}</TableCell>
-                                        <TableCell className="text-right">
-                                            <div className="flex justify-end gap-2">
+                                        <TableCell className="text-center">
+                                            <div className="flex justify-center gap-2">
                                                 <Button
                                                     variant="ghost"
                                                     size="icon"
