@@ -34,6 +34,7 @@ export const Roles: React.FC = () => {
   const [page, setPage] = useState(1); // UI page starts at 1
   const [size, setSize] = useState(5); // Requirement: Max 5 items per page
   const [totalPages, setTotalPages] = useState(1);
+  const [totalRoles, setTotalRoles] = useState(0);
 
   // Filter roles based on search
   const filteredRoles = roles1.filter((role) =>
@@ -61,6 +62,7 @@ export const Roles: React.FC = () => {
       if (responseData && responseData.roles) {
         setRoles1(responseData.roles);
         setTotalPages(responseData.totalPages);
+        setTotalRoles(responseData.totalElements || responseData.roles.length);
       }
     } catch (error) {
       console.log(error);
@@ -166,7 +168,7 @@ export const Roles: React.FC = () => {
             <TableHeader>
               <TableRow>
                 <TableHead>Role Name</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
+                <TableHead className="text-center">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -188,8 +190,8 @@ export const Roles: React.FC = () => {
                         {role.name}
                       </div>
                     </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-2">
+                    <TableCell className="text-center">
+                      <div className="flex justify-center gap-2">
                         <Button
                           variant="ghost"
                           size="sm"
@@ -217,16 +219,21 @@ export const Roles: React.FC = () => {
         </div>
 
         {/* Pagination Buttons */}
-        <div className="flex justify-end gap-2 mt-4">
-          <Button onClick={handlePrev} disabled={page === 1}>
-            Prev
-          </Button>
-          <span className="px-2">
-            Page {page} of {totalPages}
+        <div className="flex justify-between items-center mt-4">
+          <span className="text-sm text-muted-foreground">
+            Total Roles: {totalRoles}
           </span>
-          <Button onClick={handleNext} disabled={page >= totalPages}>
-            Next
-          </Button>
+          <div className="flex gap-2">
+            <Button onClick={handlePrev} disabled={page === 1}>
+              Prev
+            </Button>
+            <span className="px-2 flex items-center">
+              Page {page} of {totalPages}
+            </span>
+            <Button onClick={handleNext} disabled={page >= totalPages}>
+              Next
+            </Button>
+          </div>
         </div>
 
         {/* Add/Edit Role Dialog */}
