@@ -35,6 +35,8 @@ export const Designations: React.FC = () => {
     const [editingDesignation, setEditingDesignation] = useState<Designation | null>(null);
     const [departments, setDepartments] = useState<Department[]>([]);
     const [selectedDeptId, setSelectedDeptId] = useState<string>('');
+    const [currentPage, setCurrentPage] = useState(1);
+    const itemsPerPage = 5;
 
     const handleOpenDialog = (designation?: Designation) => {
         if (designation) {
@@ -93,12 +95,12 @@ export const Designations: React.FC = () => {
 
         try {
             if (editingDesignation) {
-                    const updated = await designationService.update(editingDesignation.id, newDesignationName.trim(), selectedDeptId);
-                    console.log('Designations: update response', updated);
+                const updated = await designationService.update(editingDesignation.id, newDesignationName.trim(), selectedDeptId);
+                console.log('Designations: update response', updated);
                 const normalized = {
                     ...updated,
-                    departmentId: updated.department_id?.toString() || selectedDeptId,
-                    departmentName: updated.department?.name || departments.find(d => d.id.toString() === selectedDeptId)?.name || ''
+                    departmentId: (updated as any).department_id?.toString() || selectedDeptId,
+                    departmentName: (updated as any).department?.name || departments.find(d => d.id.toString() === selectedDeptId)?.name || ''
                 } as any;
                 setDesignations(prev => prev.map(d => d.id === normalized.id ? normalized : d));
                 toast.success('Designation updated successfully');
@@ -107,8 +109,8 @@ export const Designations: React.FC = () => {
                 console.log('Designations: create response', created);
                 const normalized = {
                     ...created,
-                    departmentId: created.department_id?.toString() || selectedDeptId,
-                    departmentName: created.department?.name || departments.find(d => d.id.toString() === selectedDeptId)?.name || ''
+                    departmentId: (created as any).department_id?.toString() || selectedDeptId,
+                    departmentName: (created as any).department?.name || departments.find(d => d.id.toString() === selectedDeptId)?.name || ''
                 } as any;
                 setDesignations(prev => [...prev, normalized]);
                 toast.success('Designation added successfully');
@@ -166,15 +168,21 @@ export const Designations: React.FC = () => {
     };
 
     const handleDelete = async (id: string) => {
-        if (!window.confirm('Are you sure you want to delete this designation?')) return;
+        if (!window.confirm('Are you sure you want to delete this designation? This action cannot be undone.')) return;
         try {
             await designationService.remove(id);
             setDesignations(prev => prev.filter(d => d.id !== id));
-            toast.success('Designation deleted successfully');
+            toast.success('Designation deleted successfully!');
         } catch (err) {
-            toast.error('Failed to delete designation');
+            toast.error('Failed to delete designation. Please try again.');
         }
     };
+
+    // Pagination calculations
+    const totalPages = Math.ceil(designations.length / itemsPerPage);
+    const indexOfLastItem = currentPage * itemsPerPage;
+    const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+    const currentItems = designations.slice(indexOfFirstItem, indexOfLastItem);
 
     return (
         <DashboardLayout
@@ -200,20 +208,20 @@ export const Designations: React.FC = () => {
                             <TableRow>
                                 <TableHead>Designation Name</TableHead>
                                 <TableHead>Department</TableHead>
-                                <TableHead className="text-right">Actions</TableHead>
+                                <TableHead className="text-center">Actions</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {designations.map((item) => (
+                            {currentItems.map((item) => (
                                 <TableRow key={item.id}>
-                                        <TableCell className="font-medium">
-                                            {item.name}
-                                        </TableCell>
-                                        <TableCell>
-                                            <span className="text-sm text-muted-foreground">{(item as any).departmentName || (item as any).department?.name || '-'}</span>
-                                        </TableCell>
-                                        <TableCell className="text-right">
-                                        <div className="flex justify-end gap-2">
+                                    <TableCell className="font-medium">
+                                        {item.name}
+                                    </TableCell>
+                                    <TableCell>
+                                        <span className="text-sm text-muted-foreground">{(item as any).departmentName || (item as any).department?.name || '-'}</span>
+                                    </TableCell>
+                                    <TableCell className="text-center">
+                                        <div className="flex justify-center gap-2">
                                             <Button
                                                 variant="ghost"
                                                 size="sm"
@@ -245,6 +253,34 @@ export const Designations: React.FC = () => {
                         </TableBody>
                     </Table>
                 </div>
+
+                {/* Pagination */}
+                {totalPages > 1 && (
+                    <div className="flex justify-between items-center mt-4">
+                        <span className="text-sm text-muted-foreground">
+                            Total Designations: {designations.length}
+                        </span>
+                        <div className="flex gap-2">
+                            <Button
+                                variant="outline"
+                                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                disabled={currentPage === 1}
+                            >
+                                Previous
+                            </Button>
+                            <span className="px-2 flex items-center">
+                                Page {currentPage} of {totalPages}
+                            </span>
+                            <Button
+                                variant="outline"
+                                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                                disabled={currentPage === totalPages}
+                            >
+                                Next
+                            </Button>
+                        </div>
+                    </div>
+                )}
 
                 {/* Add/Edit Designation Dialog */}
                 <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
@@ -282,7 +318,7 @@ export const Designations: React.FC = () => {
                                             <SelectItem value="">No departments</SelectItem>
                                         ) : (
                                             departments.map(dept => (
-                                                <SelectItem key={dept.id} value={dept.id.toString()}>{dept.departmentName || dept.name}</SelectItem>
+                                                <SelectItem key={dept.id} value={dept.id.toString()}>{(dept as any).departmentName || dept.name}</SelectItem>
                                             ))
                                         )}
                                     </SelectContent>
