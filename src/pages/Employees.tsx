@@ -18,7 +18,7 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Search, Plus, Pencil, Trash2, Building } from 'lucide-react';
+import { Search, Plus, Pencil, Trash2, Building, Eye, EyeOff } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { differenceInYears } from 'date-fns';
 import {
@@ -43,6 +43,7 @@ export const Employees: React.FC = () => {
   const [loadingDesignations, setLoadingDesignations] = useState(false);
   const [savingEmployee, setSavingEmployee] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCompany, setFilterCompany] = useState(''); // Default to empty or first company
   const [filterDepartment, setFilterDepartment] = useState('all');
@@ -398,6 +399,7 @@ export const Employees: React.FC = () => {
       // Clear departments for new user
       setDepartments([]);
     }
+    setShowPassword(false); // Reset password visibility
     setIsDialogOpen(true);
   };
 
@@ -543,7 +545,7 @@ export const Employees: React.FC = () => {
         await employeeService.deleteEmployee(userId);
 
         console.log('✅ Employee deleted successfully from database');
-        toast.success('Employee deleted successfully from the database!');
+        toast.success('Employee deleted successfully!');
 
         // Remove from local state
         setUsers(users.filter(u => u.id !== userId));
@@ -552,7 +554,7 @@ export const Employees: React.FC = () => {
       } catch (error) {
         console.error('❌ Failed to delete employee from database:', error);
         console.error('❌ Error message:', error.message);
-        toast.error(`Failed to delete employee: ${error.message}`);
+        toast.error(`Failed to delete employee. Please try again.`);
       }
     }
   };
@@ -689,13 +691,31 @@ export const Employees: React.FC = () => {
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="password">Password {editingUser ? '(Leave empty to keep)' : '*'}</Label>
-                      <Input
-                        id="password"
-                        type="password"
-                        placeholder={editingUser ? "******" : "Required"}
-                        value={formData.password}
-                        onChange={e => setFormData({ ...formData, password: e.target.value })}
-                      />
+                      <div className="relative">
+                        <Input
+                          id="password"
+                          type={showPassword ? 'text' : 'password'}
+                          placeholder={editingUser ? "******" : "Required"}
+                          value={formData.password}
+                          onChange={e => setFormData({ ...formData, password: e.target.value })}
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                          onClick={() => setShowPassword(!showPassword)}
+                        >
+                          {showPassword ? (
+                            <EyeOff className="h-4 w-4 text-muted-foreground" />
+                          ) : (
+                            <Eye className="h-4 w-4 text-muted-foreground" />
+                          )}
+                          <span className="sr-only">
+                            {showPassword ? 'Hide password' : 'Show password'}
+                          </span>
+                        </Button>
+                      </div>
                     </div>
                   </div>
 
@@ -854,7 +874,7 @@ export const Employees: React.FC = () => {
                 <TableHead>Role</TableHead>
                 <TableHead>Designation</TableHead>
                 <TableHead>Experience</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
+                <TableHead className="text-center">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -901,8 +921,8 @@ export const Employees: React.FC = () => {
                         </span>
                       </div>
                     </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-2">
+                    <TableCell className="text-center">
+                      <div className="flex justify-center gap-2">
                         <Button variant="ghost" size="sm" onClick={() => handleOpenDialog(user)} title="Edit">
                           <Pencil className="w-4 h-4" />
                         </Button>
