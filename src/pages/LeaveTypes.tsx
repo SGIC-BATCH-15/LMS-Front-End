@@ -58,6 +58,8 @@ export const LeaveTypes: React.FC = () => {
                 displayName: lt.leaveType,
                 color: availableColors[index % availableColors.length] // Assign color based on index
             }));
+            // Sort with newest first (reverse order by ID)
+            mappedTypes.sort((a, b) => parseInt(b.id) - parseInt(a.id));
             setLeaveTypes(mappedTypes);
         } catch (error) {
             console.error("Failed to fetch leave types", error);
@@ -191,7 +193,7 @@ export const LeaveTypes: React.FC = () => {
                                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                         LEAVE TYPE NAME
                                     </th>
-                                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                                         ACTION
                                     </th>
                                 </tr>
@@ -206,7 +208,7 @@ export const LeaveTypes: React.FC = () => {
                                             </div>
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap text-sm">
-                                            <div className="flex justify-end gap-2">
+                                            <div className="flex justify-center gap-2">
                                                 <Button
                                                     variant="ghost"
                                                     size="sm"
@@ -235,35 +237,40 @@ export const LeaveTypes: React.FC = () => {
 
                 {/* Pagination */}
                 {totalPages > 1 && (
-                    <Pagination>
-                        <PaginationContent>
-                            <PaginationItem>
-                                <PaginationPrevious
-                                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                                    className={currentPage === 1 ? 'pointer-events-none opacity-50' : 'cursor-pointer'}
-                                />
-                            </PaginationItem>
-
-                            {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-                                <PaginationItem key={page}>
-                                    <PaginationLink
-                                        isActive={page === currentPage}
-                                        onClick={() => setCurrentPage(page)}
-                                        className="cursor-pointer"
-                                    >
-                                        {page}
-                                    </PaginationLink>
+                    <div className="flex justify-between items-center">
+                        <span className="text-sm text-muted-foreground">
+                            Total Leave Types: {filteredLeaveTypes.length}
+                        </span>
+                        <Pagination>
+                            <PaginationContent>
+                                <PaginationItem>
+                                    <PaginationPrevious
+                                        onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                        className={currentPage === 1 ? 'pointer-events-none opacity-50' : 'cursor-pointer'}
+                                    />
                                 </PaginationItem>
-                            ))}
 
-                            <PaginationItem>
-                                <PaginationNext
-                                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                                    className={currentPage === totalPages ? 'pointer-events-none opacity-50' : 'cursor-pointer'}
-                                />
-                            </PaginationItem>
-                        </PaginationContent>
-                    </Pagination>
+                                {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                                    <PaginationItem key={page}>
+                                        <PaginationLink
+                                            isActive={page === currentPage}
+                                            onClick={() => setCurrentPage(page)}
+                                            className="cursor-pointer"
+                                        >
+                                            {page}
+                                        </PaginationLink>
+                                    </PaginationItem>
+                                ))}
+
+                                <PaginationItem>
+                                    <PaginationNext
+                                        onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                                        className={currentPage === totalPages ? 'pointer-events-none opacity-50' : 'cursor-pointer'}
+                                    />
+                                </PaginationItem>
+                            </PaginationContent>
+                        </Pagination>
+                    </div>
                 )}
 
                 {/* Add/Edit Dialog */}
