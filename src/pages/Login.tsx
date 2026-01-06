@@ -13,6 +13,7 @@ export const Login: React.FC = () => {
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
     const [error, setError] = useState('');
+    const [emailError, setEmailError] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const { login } = useAuth();
     const navigate = useNavigate();
@@ -20,11 +21,19 @@ export const Login: React.FC = () => {
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setError('');
+        setEmailError('');
         setIsLoading(true);
 
-        // Basic validation
+        // Email validation
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
         if (!email || !password) {
             setError('Please enter both email and password');
+            setIsLoading(false);
+            return;
+        }
+
+        if (!emailRegex.test(email)) {
+            setEmailError('Please enter a valid email address (e.g., user@example.com)');
             setIsLoading(false);
             return;
         }
@@ -40,7 +49,7 @@ export const Login: React.FC = () => {
             // Display the specific error message from backend or default message
             const errorMessage = err.message || 'Invalid email or password';
             setError(errorMessage);
-            
+
             console.error('Login error:', err);
         } finally {
             setIsLoading(false);
@@ -76,41 +85,50 @@ export const Login: React.FC = () => {
                                 type="email"
                                 placeholder="Enter your email"
                                 value={email}
-                                onChange={(e) => setEmail(e.target.value)}
+                                onChange={(e) => {
+                                    setEmail(e.target.value);
+                                    setEmailError('');
+                                }}
                                 required
                                 disabled={isLoading}
                                 autoComplete="email"
+                                className={emailError ? 'border-red-500' : ''}
                             />
+                            {emailError && (
+                                <p className="text-sm text-red-500">{emailError}</p>
+                            )}
                         </div>
 
-                        <Label htmlFor="password">Password</Label>
-                        <div className="relative">
-                            <Input
-                                id="password"
-                                type={showPassword ? 'text' : 'password'}
-                                placeholder="Enter your password"
-                                value={password}
-                                onChange={(e) => setPassword(e.target.value)}
-                                required
-                                disabled={isLoading}
-                                autoComplete="current-password"
-                            />
-                            <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
-                                onClick={() => setShowPassword(!showPassword)}
-                            >
-                                {showPassword ? (
-                                    <EyeOff className="h-4 w-4 text-muted-foreground" />
-                                ) : (
-                                    <Eye className="h-4 w-4 text-muted-foreground" />
-                                )}
-                                <span className="sr-only">
-                                    {showPassword ? 'Hide password' : 'Show password'}
-                                </span>
-                            </Button>
+                        <div className="space-y-2">
+                            <Label htmlFor="password">Password</Label>
+                            <div className="relative">
+                                <Input
+                                    id="password"
+                                    type={showPassword ? 'text' : 'password'}
+                                    placeholder="Enter your password"
+                                    value={password}
+                                    onChange={(e) => setPassword(e.target.value)}
+                                    required
+                                    disabled={isLoading}
+                                    autoComplete="current-password"
+                                />
+                                <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                                    onClick={() => setShowPassword(!showPassword)}
+                                >
+                                    {showPassword ? (
+                                        <EyeOff className="h-4 w-4 text-muted-foreground" />
+                                    ) : (
+                                        <Eye className="h-4 w-4 text-muted-foreground" />
+                                    )}
+                                    <span className="sr-only">
+                                        {showPassword ? 'Hide password' : 'Show password'}
+                                    </span>
+                                </Button>
+                            </div>
                         </div>
 
                         <div className="flex justify-end">
