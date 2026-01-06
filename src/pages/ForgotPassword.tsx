@@ -23,23 +23,33 @@ export const ForgotPassword: React.FC = () => {
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState('');
+    const [emailError, setEmailError] = useState('');
     const navigate = useNavigate();
 
     const handleEmailSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setError('');
+        setEmailError('');
         setIsLoading(true);
 
-        try{
-            await axios.post(`${API_BASE_URL}/auth/otp`, 
-                {email:email.trim()});
+        // Email validation
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(email)) {
+            setEmailError('Please enter a valid email address (e.g., user@example.com)');
+            setIsLoading(false);
+            return;
+        }
 
-                toast.success('OTP code sent to your email Successfully',{
-                    description: 'Please check your email for the verification code.',
-                });
-                setStep('OTP');
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        } catch (err:any) {
+        try {
+            await axios.post(`${API_BASE_URL}/auth/otp`,
+                { email: email.trim() });
+
+            toast.success('OTP code sent to your email Successfully', {
+                description: 'Please check your email for the verification code.',
+            });
+            setStep('OTP');
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        } catch (err: any) {
             const message = err.response?.data?.message || 'Failed to send OTP code. Please try again.';
             setError(message);
             toast.error(message);
@@ -53,16 +63,16 @@ export const ForgotPassword: React.FC = () => {
         setError('');
         setIsLoading(true);
 
-        try{
-            await axios.post(`${API_BASE_URL}/auth/otp/verify`,{
-                email:email.trim(),
-                otp:otp
+        try {
+            await axios.post(`${API_BASE_URL}/auth/otp/verify`, {
+                email: email.trim(),
+                otp: otp
             });
 
             toast.success('OTP verified successfully');
             setStep('RESET');
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        } catch (err:any) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        } catch (err: any) {
             const message = err.response?.data?.message || 'Invalid OTP code. Please try again.';
             setError(message);
             toast.error(message);
@@ -88,6 +98,19 @@ export const ForgotPassword: React.FC = () => {
         setIsLoading(true);
 
         try {
+            // First, verify that the new password is different from the old password
+            // by attempting login with the new password - if it succeeds, they are the same
+            const loginCheckResponse = await axios.post(`${API_BASE_URL}/auth/login`, {
+                email: email.trim(),
+                password: newPassword
+            }).catch(() => null); // Suppress error if login fails (which is expected)
+
+            if (loginCheckResponse && loginCheckResponse.status === 200) {
+                setError('New password cannot be the same as the old password');
+                setIsLoading(false);
+                return;
+            }
+
             await axios.put(`${API_BASE_URL}/auth/update`, {
                 email: email.trim(),
                 newPassword: newPassword,
@@ -96,7 +119,7 @@ export const ForgotPassword: React.FC = () => {
 
             toast.success('Password reset successfully');
             setStep('SUCCESS');
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
         } catch (err: any) {
             const message = err.response?.data?.message || 'Failed to reset password. Please try again.';
             setError(message);
@@ -118,10 +141,17 @@ export const ForgotPassword: React.FC = () => {
                                 type="email"
                                 placeholder="Enter your email"
                                 value={email}
-                                onChange={(e) => setEmail(e.target.value)}
+                                onChange={(e) => {
+                                    setEmail(e.target.value);
+                                    setEmailError('');
+                                }}
                                 required
                                 disabled={isLoading}
+                                className={emailError ? 'border-red-500' : ''}
                             />
+                            {emailError && (
+                                <p className="text-sm text-red-500">{emailError}</p>
+                            )}
                         </div>
                         <Button type="submit" className="w-full" disabled={isLoading} size="lg">
                             {isLoading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Sending code...</> : 'Send Code'}
@@ -156,19 +186,19 @@ export const ForgotPassword: React.FC = () => {
                             </p>
                         </div>
 
-                        <Button 
-                            type="submit" 
-                            className="w-full" 
-                            disabled={isLoading || otp.length !== 6} 
+                        <Button
+                            type="submit"
+                            className="w-full"
+                            disabled={isLoading || otp.length !== 6}
                             size="lg"
                         >
                             {isLoading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Verifying...</> : 'Verify Code'}
                         </Button>
 
-                        <Button 
-                            variant="link" 
-                            type="button" 
-                            className="w-full" 
+                        <Button
+                            variant="link"
+                            type="button"
+                            className="w-full"
                             onClick={() => {
                                 setStep('EMAIL');
                                 setOtp('');
@@ -233,6 +263,16 @@ export const ForgotPassword: React.FC = () => {
                         <Button type="submit" className="w-full" disabled={isLoading} size="lg">
                             {isLoading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Resetting...</> : 'Reset Password'}
                         </Button>
+
+                        <div className="mt-4 text-center">
+                            <Link
+                                to="/login"
+                                className="inline-flex items-center text-sm text-muted-foreground hover:text-primary transition-colors"
+                            >
+                                <ArrowLeft className="w-4 h-4 mr-2" />
+                                Back to Login
+                            </Link>
+                        </div>
                     </form>
                 );
 
@@ -244,8 +284,8 @@ export const ForgotPassword: React.FC = () => {
                                 Your password has been successfully reset. You can now login with your new password.
                             </AlertDescription>
                         </Alert>
-                        <Button 
-                            className="w-full" 
+                        <Button
+                            className="w-full"
                             size="lg"
                             onClick={() => navigate('/login')}
                         >
