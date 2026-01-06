@@ -32,6 +32,8 @@ export const EmailConfiguration: React.FC = () => {
     const [enableCC, setEnableCC] = useState(false);
     const { toast } = useToast();
     const [isLoading, setIsLoading] = useState(false);
+    const [emailError, setEmailError] = useState('');
+    const [ccEmailError, setCcEmailError] = useState('');
 
     // Initial form state
     const [formData, setFormData] = useState<EmailConfigDTO>({
@@ -112,6 +114,23 @@ export const EmailConfiguration: React.FC = () => {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        setEmailError('');
+        setCcEmailError('');
+
+        // Email validation regex
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+        // Validate sentEmail
+        if (!emailRegex.test(formData.sentEmail)) {
+            setEmailError('Please enter a valid email address (e.g., user@example.com)');
+            return;
+        }
+
+        // Validate CC email if enabled
+        if (enableCC && formData.ccMailAddress && !emailRegex.test(formData.ccMailAddress)) {
+            setCcEmailError('Please enter a valid CC email address (e.g., cc@example.com)');
+            return;
+        }
 
         const payload: EmailConfigDTO = {
             ...formData,
@@ -287,9 +306,16 @@ export const EmailConfiguration: React.FC = () => {
                                         type="email"
                                         placeholder="noreply@company.com"
                                         value={formData.sentEmail}
-                                        onChange={(e) => setFormData({ ...formData, sentEmail: e.target.value })}
+                                        onChange={(e) => {
+                                            setFormData({ ...formData, sentEmail: e.target.value });
+                                            setEmailError('');
+                                        }}
                                         required
+                                        className={emailError ? 'border-red-500' : ''}
                                     />
+                                    {emailError && (
+                                        <p className="text-sm text-red-500 mt-1">{emailError}</p>
+                                    )}
                                 </div>
                                 <div className="space-y-2">
                                     <Label htmlFor="hostName">
@@ -380,8 +406,15 @@ export const EmailConfiguration: React.FC = () => {
                                             type="email"
                                             placeholder="cc@company.com"
                                             value={formData.ccMailAddress || ''}
-                                            onChange={(e) => setFormData({ ...formData, ccMailAddress: e.target.value })}
+                                            onChange={(e) => {
+                                                setFormData({ ...formData, ccMailAddress: e.target.value });
+                                                setCcEmailError('');
+                                            }}
+                                            className={ccEmailError ? 'border-red-500' : ''}
                                         />
+                                        {ccEmailError && (
+                                            <p className="text-sm text-red-500 mt-1">{ccEmailError}</p>
+                                        )}
                                     </div>
                                 )}
                             </div>
