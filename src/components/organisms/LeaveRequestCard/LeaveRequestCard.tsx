@@ -49,7 +49,7 @@ export const LeaveRequestCard: React.FC<LeaveRequestCardProps> = ({
           <UserAvatar name={request.employeeName} size="md" />
           <div>
             <p className="font-semibold text-foreground">{request.employeeName}</p>
-            <p className="text-sm text-muted-foreground line-clamp-1">{request.reason}</p>
+            <p className="text-sm text-muted-foreground line-clamp-2 break-words">{request.reason}</p>
           </div>
         </div>
         <StatusBadge status={request.status} />
