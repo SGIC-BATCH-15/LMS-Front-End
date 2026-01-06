@@ -157,8 +157,8 @@ export const LeaveNotificationRules: React.FC = () => {
 
             if (error.response) {
                 // Extract backend message from ResponseWrapper
-                message = error.response.data?.message 
-                    || error.response.data?.error 
+                message = error.response.data?.message
+                    || error.response.data?.error
                     || `Server error: ${error.response.status}`;
             } else if (error.request) {
                 message = 'No response from server. Check network or backend.';
@@ -207,7 +207,7 @@ export const LeaveNotificationRules: React.FC = () => {
                         <Label className="text-sm font-medium text-gray-700 whitespace-nowrap">
                             Select Company:
                         </Label>
-                        <Select value={selectedCompany} onValueChange={handleCompanyChange}>
+                        <Select value={selectedCompany} onValueChange={handleCompanyChange} disabled>
                             <SelectTrigger className="w-64">
                                 <SelectValue placeholder="Select a company" />
                             </SelectTrigger>
