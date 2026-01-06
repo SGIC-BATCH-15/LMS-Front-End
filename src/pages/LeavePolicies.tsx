@@ -52,6 +52,7 @@ export const LeavePolicies: React.FC = () => {
   // Pagination State
   const [page, setPage] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
+  const [totalPolicies, setTotalPolicies] = useState(0);
   const pageSize = 5;
 
   const { toast } = useToast();
@@ -88,6 +89,7 @@ export const LeavePolicies: React.FC = () => {
         }));
         setPolicies(mappedPolicies);
         setTotalPages(response.data.totalPages);
+        setTotalPolicies(response.data.totalElements || response.data.content.length);
       }
     } catch (error) {
       console.error("Failed to fetch policies", error);
@@ -342,7 +344,7 @@ export const LeavePolicies: React.FC = () => {
                 <TableHead>Experience Range</TableHead>
                 <TableHead>Days Allowed</TableHead>
                 <TableHead>Carry Forward</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
+                <TableHead className="text-center">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -357,7 +359,7 @@ export const LeavePolicies: React.FC = () => {
                   </TableCell>
                   {/* Role cell removed */}
                   <TableCell>
-                    {policy.minExperience}y - {policy.maxExperience >= 100 ? '∞' : `${policy.maxExperience}y`}
+                    {policy.minExperience}y - {policy.maxExperience >= 100 ? '100+ years' : `${policy.maxExperience}y`}
                   </TableCell>
                   <TableCell>
                     <span className="font-semibold text-foreground">{policy.daysAllowed} days</span>
@@ -372,8 +374,8 @@ export const LeavePolicies: React.FC = () => {
                       <span className="text-muted-foreground">No</span>
                     )}
                   </TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex justify-end gap-2">
+                  <TableCell className="text-center">
+                    <div className="flex justify-center gap-2">
                       <Button variant="ghost" size="sm" onClick={() => handleEditPolicy(policy)} title="Edit">
                         <Pencil className="w-4 h-4" />
                       </Button>
@@ -388,26 +390,31 @@ export const LeavePolicies: React.FC = () => {
           </Table>
 
           {/* Pagination Controls */}
-          <div className="flex items-center justify-end space-x-2 p-4">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setPage(p => Math.max(0, p - 1))}
-              disabled={page === 0}
-            >
-              Previous
-            </Button>
+          <div className="flex items-center justify-between p-4">
             <span className="text-sm text-muted-foreground">
-              Page {page + 1} of {totalPages || 1}
+              Total Leave Policies: {totalPolicies}
             </span>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))}
-              disabled={page >= totalPages - 1} // Limit to calculated pages
-            >
-              Next
-            </Button>
+            <div className="flex items-center space-x-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setPage(p => Math.max(0, p - 1))}
+                disabled={page === 0}
+              >
+                Previous
+              </Button>
+              <span className="text-sm text-muted-foreground">
+                Page {page + 1} of {totalPages || 1}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))}
+                disabled={page >= totalPages - 1} // Limit to calculated pages
+              >
+                Next
+              </Button>
+            </div>
           </div>
         </div>
       </div>
