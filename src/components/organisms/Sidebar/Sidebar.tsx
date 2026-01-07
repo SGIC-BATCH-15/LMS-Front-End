@@ -68,6 +68,7 @@ const getNavItems = (): MenuItem[] => {
         { to: '/leave-policies', label: 'Leave Policies', icon: FileText, permission: 'manage_policies' },
         { to: '/email-configuration', label: 'Email Configuration', icon: Mail, permission: 'system_settings' },
         { to: '/leave-notification-rules', label: 'Leave Notification Rules', icon: Settings, permission: 'system_settings' },
+        { to: '/holiday-configuration', label: 'Holiday Configuration', icon: CalendarDays, permission: 'system_settings' },
       ],
     },
   ];
