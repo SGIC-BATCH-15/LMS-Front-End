@@ -41,7 +41,7 @@ export const Login: React.FC = () => {
         try {
             const success = await login(email, password);
             if (success) {
-                navigate('/');
+                navigate('/dashboard');
             } else {
                 setError('Invalid email or password');
             }
