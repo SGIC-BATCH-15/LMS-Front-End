@@ -44,7 +44,7 @@ interface MenuItem {
 
 const getNavItems = (): MenuItem[] => {
   return [
-    { to: '/', label: 'Dashboard', icon: LayoutDashboard, permission: 'view_dashboard' },
+    { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, permission: 'view_dashboard' },
     { to: '/employees', label: 'Employees', icon: Users, permission: 'manage_employees' },
     {
       label: 'Leave Management',
@@ -71,6 +71,7 @@ const getNavItems = (): MenuItem[] => {
         { to: '/email-configuration', label: 'Email Configuration', icon: Mail, permission: 'system_settings' },
         { to: '/leave-notification-rules', label: 'Leave Notification Rules', icon: Settings, permission: 'system_settings' },
         { to: '/leave-allocation', label: 'Leave Allocation', icon: FileText, permission: 'manage_policies' },
+        { to: '/holiday-configuration', label: 'Holiday Configuration', icon: CalendarDays, permission: 'system_settings' },
       ],
     },
   ];
