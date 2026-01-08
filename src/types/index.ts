@@ -110,52 +110,16 @@ export interface Notification {
   createdAt: string;
 }
 
-// Backend Employee interface for API integration
-export interface BackendEmployee {
-  id: number;
-  firstName: string;
-  lastName: string;
-  email: string;
+export interface Holiday {
+  id: string;
+  name: string;
+  date: Date;
+  companyId: string;
+  type: 'public' | 'restricted';
 }
 
-// Backend Leave Type interface
-export interface BackendLeaveType {
-  id: number;
-  leaveType: string;
-}
-
-// Backend Leave Request Payload
-export interface BackendLeaveRequestPayload {
-  leaveTypeId: number;
-  employeeId: number;
-  startDate: string; // Format: YYYY-MM-DD
-  endDate: string; // Format: YYYY-MM-DD
-  leaveDuration: number;
-  reason: string;
-  halfDay: boolean;
-  halfDayType?: "MORNING" | "AFTERNOON" | null;
-  toEmailEmployeeId: number;
-  ccEmailEmployeeIds: number[];
-}
-
-// Backend Leave Request Response
-export interface BackendLeaveRequestResponse {
-  statusCode: number;
-  statusMessage: string;
-  data: {
-    id: number;
-    leaveType: BackendLeaveType;
-    employee: BackendEmployee;
-    startDate: string;
-    endDate: string;
-    leaveDuration: number;
-    reason: string;
-    status: string;
-    halfDay: boolean;
-    halfDayType: string | null;
-    toEmail: BackendEmployee;
-    ccEmails: BackendEmployee[];
-    createdAt: string;
-    updatedAt: string;
-  };
+export interface WeeklyOff {
+  id: string;
+  companyId: string;
+  days: number[]; // 0 = Sunday, 1 = Monday, etc.
 }

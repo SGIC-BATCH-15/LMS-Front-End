@@ -124,7 +124,7 @@ export const Company: React.FC = () => {
 
         try {
             setIsLoading(true);
-            
+
             console.log('Sending company data:', formData);
 
             if (editingCompany) {
@@ -144,12 +144,12 @@ export const Company: React.FC = () => {
             console.error('Failed to save company:', error);
             console.error('Error response:', error?.response);
             console.error('Error data:', error?.response?.data);
-            
-            const errorMessage = error?.response?.data?.message 
-                || error?.response?.data?.error 
-                || error?.message 
+
+            const errorMessage = error?.response?.data?.message
+                || error?.response?.data?.error
+                || error?.message
                 || 'Failed to save company';
-            
+
             toast.error(errorMessage);
         } finally {
             setIsLoading(false);
@@ -162,7 +162,7 @@ export const Company: React.FC = () => {
             'Note: Companies with linked records (employees, departments, etc.) cannot be deleted. ' +
             'You must first remove or reassign all related records.'
         );
-        
+
         if (confirmed) {
             try {
                 console.log('Attempting to delete company with ID:', id);
@@ -174,21 +174,21 @@ export const Company: React.FC = () => {
                 console.error('Failed to delete company:', error);
                 console.error('Delete error response:', error?.response);
                 console.error('Delete error data:', error?.response?.data);
-                
+
                 const backendMessage = error?.response?.data?.statusMessage
-                    || error?.response?.data?.message 
-                    || error?.response?.data?.error 
+                    || error?.response?.data?.message
+                    || error?.response?.data?.error
                     || error?.message;
-                
+
                 let userMessage = '';
-                
-                if (backendMessage?.toLowerCase().includes('linked') || 
+
+                if (backendMessage?.toLowerCase().includes('linked') ||
                     backendMessage?.toLowerCase().includes('related')) {
                     userMessage = 'Cannot delete this company because it has related records (employees, departments, leave requests, etc.). Please remove or reassign all related records first, then try again.';
                 } else {
                     userMessage = backendMessage || 'Failed to delete company';
                 }
-                
+
                 toast.error(userMessage, { duration: 6000 });
             }
         }

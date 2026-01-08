@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -24,7 +24,39 @@ export const ForgotPassword: React.FC = () => {
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState('');
     const [emailError, setEmailError] = useState('');
+    const [timer, setTimer] = useState(30);
     const navigate = useNavigate();
+
+    useEffect(() => {
+        let interval: any;
+        if (step === 'OTP' && timer > 0) {
+            interval = setInterval(() => {
+                setTimer((prev) => prev - 1);
+            }, 1000);
+        }
+        return () => clearInterval(interval);
+    }, [step, timer]);
+
+    const handleResendOtp = async () => {
+        setError('');
+        setIsLoading(true);
+        try {
+            await axios.post(`${API_BASE_URL}/auth/otp`,
+                { email: email.trim() });
+
+            toast.success('OTP code resent successfully', {
+                description: 'Please check your email for the verification code.',
+            });
+            setTimer(30);
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        } catch (err: any) {
+            const message = err.response?.data?.message || 'Failed to resend OTP code. Please try again.';
+            setError(message);
+            toast.error(message);
+        } finally {
+            setIsLoading(false);
+        }
+    };
 
     const handleEmailSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -48,6 +80,7 @@ export const ForgotPassword: React.FC = () => {
                 description: 'Please check your email for the verification code.',
             });
             setStep('OTP');
+            setTimer(30);
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
         } catch (err: any) {
             const message = err.response?.data?.message || 'Failed to send OTP code. Please try again.';
@@ -194,6 +227,28 @@ export const ForgotPassword: React.FC = () => {
                         >
                             {isLoading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Verifying...</> : 'Verify Code'}
                         </Button>
+
+                        <div className="text-center mt-4">
+                            {timer > 0 ? (
+                                <Button
+                                    variant="outline"
+                                    disabled
+                                    className="w-full"
+                                >
+                                    Resend code in {timer}s
+                                </Button>
+                            ) : (
+                                <Button
+                                    variant="outline"
+                                    type="button"
+                                    className="w-full"
+                                    onClick={handleResendOtp}
+                                    disabled={isLoading}
+                                >
+                                    Resend OTP
+                                </Button>
+                            )}
+                        </div>
 
                         <Button
                             variant="link"
