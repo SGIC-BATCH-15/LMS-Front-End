@@ -2,13 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { DashboardLayout } from '@/components/templates/DashboardLayout/DashboardLayout';
 import { useAuth } from '@/context/AuthContext';
 import { useLeaveRequests } from '@/context/LeaveRequestContext';
-import { ComposeLeaveForm } from '@/components/organisms/ComposeLeaveForm/ComposeLeaveForm';
+import { EditLeaveForm } from '@/components/services/leaveRequestService';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { CalendarDays, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { LeaveRequest, LeaveBalanceItem } from '@/types';
+import { LeaveRequest } from '@/types';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -20,7 +20,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { getAllLeaveRequests, deleteLeaveRequest, LeaveRequestItem } from '@/components/services/leaveRequestService';
-import { getMyLeaveBalance } from '@/components/services/leaveAllocationService';
+import { getMyLeaveBalance, LeaveBalanceItem } from '@/components/services/leaveAllocationService';
 import { Card } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { LeaveTypeBadge } from '@/components/atoms/Badge/LeaveTypeBadge';
@@ -49,6 +49,7 @@ export const MyLeaves: React.FC = () => {
   // Edit dialog state
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editingRequest, setEditingRequest] = useState<LeaveRequest | undefined>(undefined);
+  const [editingBackendRequest, setEditingBackendRequest] = useState<LeaveRequestItem | undefined>(undefined);
 
   // Read More reason dialog state
   const [reasonDialogOpen, setReasonDialogOpen] = useState(false);
@@ -245,8 +246,10 @@ export const MyLeaves: React.FC = () => {
 
   const handleEdit = (requestId: string) => {
     const request = convertedRequestsWithFullReason.find(r => r.id === requestId);
-    if (request) {
+    const backendRequest = backendLeaveRequests.find(r => r.id.toString() === requestId);
+    if (request && backendRequest) {
       setEditingRequest(request);
+      setEditingBackendRequest(backendRequest);
       setEditDialogOpen(true);
     }
   };
@@ -254,6 +257,7 @@ export const MyLeaves: React.FC = () => {
   const handleEditClose = () => {
     setEditDialogOpen(false);
     setEditingRequest(undefined);
+    setEditingBackendRequest(undefined);
     // Refresh leave requests after edit
     const fetchLeaveRequests = async () => {
       try {
@@ -327,8 +331,8 @@ export const MyLeaves: React.FC = () => {
 
             {!balancesLoading && !balancesError && Array.isArray(leaveBalances) && leaveBalances.map((balance) => {
               const totalDays = balance.allocatedDays + balance.carriedForwardDays;
-              const usedPercentage = totalDays > 0 
-                ? (balance.usedDays / totalDays) * 100 
+              const usedPercentage = totalDays > 0
+                ? (balance.usedDays / totalDays) * 100
                 : 0;
 
               return (
@@ -339,15 +343,15 @@ export const MyLeaves: React.FC = () => {
                       {balance.remainingDays}
                     </span>
                   </div>
-                  
+
                   <div className="space-y-2">
                     <Progress value={usedPercentage} className="h-2" />
-                    
+
                     <div className="flex justify-between text-xs text-muted-foreground">
                       <span>Remaining: {balance.remainingDays}</span>
                       <span>Total: {totalDays}</span>
                     </div>
-                    
+
                     <div className="flex gap-4 text-xs flex-wrap">
                       <div className="flex items-center gap-1">
                         <span className="w-2 h-2 rounded-full bg-primary"></span>
@@ -453,8 +457,9 @@ export const MyLeaves: React.FC = () => {
           </DialogHeader>
           <div className="mt-4">
             {editingRequest && (
-              <ComposeLeaveForm
+              <EditLeaveForm
                 initialData={editingRequest}
+                originalBackendData={editingBackendRequest}
                 onClose={handleEditClose}
               />
             )}
