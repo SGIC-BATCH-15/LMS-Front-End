@@ -236,6 +236,62 @@ export const getAllLeaveRequests = async (): Promise<LeaveRequestItem[]> => {
 };
 
 /**
+ * Fetch a single leave request by ID
+ */
+export const getLeaveRequestById = async (leaveRequestId: number): Promise<LeaveRequestItem> => {
+  try {
+    const response = await apiClient.get(
+      `${LEAVE_MANAGEMENT_BASE}/leaverequest/${leaveRequestId}`
+    );
+    
+    console.log("Leave Request By ID Response:", response.data);
+    
+    const responseData = response.data;
+    
+    // Handle statusCode wrapper
+    if (responseData?.statusCode && responseData?.data) {
+      return responseData.data;
+    }
+    
+    // Direct data
+    return responseData;
+  } catch (error: any) {
+    console.error("Error fetching leave request by ID:", error);
+    console.error("Error response:", error.response?.data);
+    throw error;
+  }
+};
+
+/**
+ * Update a leave request by ID
+ */
+export const updateLeaveRequest = async (
+  leaveRequestId: number,
+  payload: CreateLeaveRequestPayload
+): Promise<LeaveRequestResponse> => {
+  try {
+    console.log("=== Updating Leave Request ===");
+    console.log("Leave Request ID:", leaveRequestId);
+    console.log("Payload:", payload);
+    
+    const response = await apiClient.put<LeaveRequestResponse>(
+      `${LEAVE_MANAGEMENT_BASE}/leaverequest/${leaveRequestId}`,
+      payload
+    );
+    
+    console.log("=== Update Leave Request Response ===");
+    console.log("Response:", response.data);
+    
+    return response.data;
+  } catch (error: any) {
+    console.error("Error updating leave request:", error);
+    console.error("Error response data:", error.response?.data);
+    console.error("Error status:", error.response?.status);
+    throw error;
+  }
+};
+
+/**
  * Delete a leave request by ID
  */
 export const deleteLeaveRequest = async (leaveRequestId: number): Promise<void> => {
@@ -247,6 +303,93 @@ export const deleteLeaveRequest = async (leaveRequestId: number): Promise<void> 
     console.log("Delete Leave Request Response:", response.data);
   } catch (error: any) {
     console.error("Error deleting leave request:", error);
+    console.error("Error response:", error.response?.data);
+    throw error;
+  }
+};
+
+/**
+ * Fetch pending leave approvals for the logged-in employee
+ */
+export const getPendingApprovals = async (): Promise<LeaveRequestItem[]> => {
+  try {
+    const response = await apiClient.get(
+      `${API_BASE_URL}/leave/approvals/pending`
+    );
+    
+    console.log("Pending Approvals Response:", response.data);
+    
+    const responseData = response.data;
+    
+    // Handle statusCode wrapper
+    if (responseData?.statusCode && responseData?.data) {
+      const data = responseData.data;
+      
+      // If data is an array of leave requests
+      if (Array.isArray(data)) {
+        console.log("Pending Approvals (array):", data);
+        return data;
+      }
+    }
+    
+    // Direct array
+    if (Array.isArray(responseData)) {
+      console.log("Pending Approvals (direct array):", responseData);
+      return responseData;
+    }
+    
+    console.log("Pending Approvals: No valid data found");
+    return [];
+  } catch (error: any) {
+    console.error("Error fetching pending approvals:", error);
+    console.error("Error response:", error.response?.data);
+    throw error;
+  }
+};
+
+/**
+ * Approve a leave request
+ */
+export const approveLeaveRequest = async (leaveRequestId: number): Promise<any> => {
+  try {
+    const payload = {
+      leaveRequestId: leaveRequestId,
+      status: "APPROVED"
+    };
+    
+    const response = await apiClient.post(
+      `${API_BASE_URL}/leave/approve`,
+      payload
+    );
+    
+    console.log("Approve Leave Request Response:", response.data);
+    return response.data;
+  } catch (error: any) {
+    console.error("Error approving leave request:", error);
+    console.error("Error response:", error.response?.data);
+    throw error;
+  }
+};
+
+/**
+ * Reject a leave request
+ */
+export const rejectLeaveRequest = async (leaveRequestId: number): Promise<any> => {
+  try {
+    const payload = {
+      leaveRequestId: leaveRequestId,
+      status: "REJECTED"
+    };
+    
+    const response = await apiClient.post(
+      `${API_BASE_URL}/leave/approve`,
+      payload
+    );
+    
+    console.log("Reject Leave Request Response:", response.data);
+    return response.data;
+  } catch (error: any) {
+    console.error("Error rejecting leave request:", error);
     console.error("Error response:", error.response?.data);
     throw error;
   }
