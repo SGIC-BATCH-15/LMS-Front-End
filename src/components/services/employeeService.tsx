@@ -4,7 +4,6 @@ export interface AddEmployeeRequest {
   firstName: string;
   lastName: string;
   email: string;
-  password: string;
   companyId: number;
   departmentId: number;
   roleIds: number[]; // Matches backend DTO: List<Long> roleIds
@@ -17,7 +16,6 @@ export interface UpdateEmployeeRequest {
   firstName: string;
   lastName: string;
   email: string;
-  password?: string; // Optional for update
   companyId: number;
   departmentId: number;
   roleIds: number[];

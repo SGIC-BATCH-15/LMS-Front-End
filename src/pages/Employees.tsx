@@ -18,7 +18,7 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Search, Plus, Pencil, Trash2, Building, Eye, EyeOff } from 'lucide-react';
+import { Search, Plus, Pencil, Trash2, Building } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { differenceInYears } from 'date-fns';
 import {
@@ -43,7 +43,7 @@ export const Employees: React.FC = () => {
   const [loadingDesignations, setLoadingDesignations] = useState(false);
   const [savingEmployee, setSavingEmployee] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
+
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCompany, setFilterCompany] = useState(''); // Default to empty or first company
   const [filterDepartment, setFilterDepartment] = useState('all');
@@ -55,7 +55,7 @@ export const Employees: React.FC = () => {
     firstName: '',
     lastName: '',
     email: '',
-    password: '',
+
     companyId: '',
     departmentId: '',
     role: '', // Store role ID as string
@@ -205,7 +205,7 @@ export const Employees: React.FC = () => {
             firstName: emp.firstName || '',
             lastName: emp.lastName || '',
             email: emp.email || '',
-            password: emp.password || '',
+            // password field removed from frontend integration
             role: roleName,
             roleIds: emp.roleIds || [], // Store roleIds for editing
             departmentId: emp.departmentId?.toString() || '',
@@ -363,7 +363,7 @@ export const Employees: React.FC = () => {
         firstName: user.firstName || user.name.split(' ')[0], // Fallback if firstName missing
         lastName: user.lastName || user.name.split(' ').slice(1).join(' '), // Fallback
         email: user.email,
-        password: user.password || '', // Usually empty for edit, but mock needs it
+        // password field removed
         companyId: companyId.toString(),
         departmentId: user.departmentId.toString(),
         role: roleId, // Set role ID instead of role name
@@ -388,7 +388,7 @@ export const Employees: React.FC = () => {
         firstName: '',
         lastName: '',
         email: '',
-        password: '',
+
         companyId: '', // Reset
         departmentId: '',
         role: '', // Reset to empty string for role ID
@@ -399,7 +399,7 @@ export const Employees: React.FC = () => {
       // Clear departments for new user
       setDepartments([]);
     }
-    setShowPassword(false); // Reset password visibility
+
     setIsDialogOpen(true);
   };
 
@@ -426,11 +426,7 @@ export const Employees: React.FC = () => {
       return;
     }
 
-    // Password validation for new users
-    if (!editingUser && !formData.password) {
-      toast.error('Password is required for new employees');
-      return;
-    }
+
 
     const calculatedCurrentExp = calculateCurrentExperience(formData.joinDate);
     const fullName = `${formData.firstName} ${formData.lastName}`;
@@ -453,7 +449,7 @@ export const Employees: React.FC = () => {
           firstName: formData.firstName.trim(),
           lastName: formData.lastName.trim(),
           email: formData.email.trim(),
-          password: formData.password || undefined, // Only send if changed
+          // password removed
           companyId: parseInt(formData.companyId),
           departmentId: parseInt(formData.departmentId),
           roleIds: [roleId],
@@ -505,7 +501,7 @@ export const Employees: React.FC = () => {
           firstName: formData.firstName.trim(),
           lastName: formData.lastName.trim(),
           email: formData.email.trim(),
-          password: formData.password,
+          // password removed
           companyId: parseInt(formData.companyId),
           departmentId: parseInt(formData.departmentId),
           roleIds: [roleId], // Matches backend DTO: List<Long> roleIds
@@ -677,47 +673,19 @@ export const Employees: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* Email & Password */}
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="email">Email *</Label>
-                      <Input
-                        id="email"
-                        type="email"
-                        placeholder="john@company.com"
-                        value={formData.email}
-                        onChange={e => setFormData({ ...formData, email: e.target.value })}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="password">Password {editingUser ? '(Leave empty to keep)' : '*'}</Label>
-                      <div className="relative">
-                        <Input
-                          id="password"
-                          type={showPassword ? 'text' : 'password'}
-                          placeholder={editingUser ? "******" : "Required"}
-                          value={formData.password}
-                          onChange={e => setFormData({ ...formData, password: e.target.value })}
-                        />
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
-                          onClick={() => setShowPassword(!showPassword)}
-                        >
-                          {showPassword ? (
-                            <EyeOff className="h-4 w-4 text-muted-foreground" />
-                          ) : (
-                            <Eye className="h-4 w-4 text-muted-foreground" />
-                          )}
-                          <span className="sr-only">
-                            {showPassword ? 'Hide password' : 'Show password'}
-                          </span>
-                        </Button>
-                      </div>
-                    </div>
+                  {/* Email */}
+                  <div className="space-y-2">
+                    <Label htmlFor="email">Email *</Label>
+                    <Input
+                      id="email"
+                      type="email"
+                      placeholder="john@company.com"
+                      value={formData.email}
+                      onChange={e => setFormData({ ...formData, email: e.target.value })}
+                    />
                   </div>
+
+
 
                   {/* Company & Department */}
                   <div className="grid grid-cols-2 gap-4">
