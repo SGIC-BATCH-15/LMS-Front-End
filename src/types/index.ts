@@ -110,6 +110,20 @@ export interface Notification {
   createdAt: string;
 }
 
+export interface Holiday {
+  id: string;
+  name: string;
+  date: Date;
+  companyId: string;
+  type: 'public' | 'restricted';
+}
+
+export interface WeeklyOff {
+  id: string;
+  companyId: string;
+  days: number[]; // 0 = Sunday, 1 = Monday, etc.
+}
+
 // Backend Employee interface for API integration
 export interface BackendEmployee {
   id: number;
