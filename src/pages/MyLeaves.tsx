@@ -2,16 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { DashboardLayout } from '@/components/templates/DashboardLayout/DashboardLayout';
 import { useAuth } from '@/context/AuthContext';
 import { useLeaveRequests } from '@/context/LeaveRequestContext';
-import { LeaveBalanceCard } from '@/components/molecules/LeaveBalanceCard/LeaveBalanceCard';
-import { LeaveRequestCard } from '@/components/organisms/LeaveRequestCard/LeaveRequestCard';
 import { ComposeLeaveForm } from '@/components/organisms/ComposeLeaveForm/ComposeLeaveForm';
-import { leaveBalances } from '@/data/mockData';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { CalendarDays, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { LeaveRequest } from '@/types';
+import { LeaveRequest, LeaveBalanceItem } from '@/types';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -23,6 +20,14 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { getAllLeaveRequests, deleteLeaveRequest, LeaveRequestItem } from '@/components/services/leaveRequestService';
+import { getMyLeaveBalance } from '@/components/services/leaveAllocationService';
+import { Card } from '@/components/ui/card';
+import { Progress } from '@/components/ui/progress';
+import { LeaveTypeBadge } from '@/components/atoms/Badge/LeaveTypeBadge';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { AlertCircle } from 'lucide-react';
+import { LeaveRequestCard } from '@/components/organisms/LeaveRequestCard/LeaveRequestCard';
 
 export const MyLeaves: React.FC = () => {
   const { currentUser } = useAuth();
@@ -36,6 +41,11 @@ export const MyLeaves: React.FC = () => {
   const [backendLeaveRequests, setBackendLeaveRequests] = useState<LeaveRequestItem[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // Leave balances state
+  const [leaveBalances, setLeaveBalances] = useState<LeaveBalanceItem[]>([]);
+  const [balancesLoading, setBalancesLoading] = useState(true);
+  const [balancesError, setBalancesError] = useState<string | null>(null);
+
   // Edit dialog state
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editingRequest, setEditingRequest] = useState<LeaveRequest | undefined>(undefined);
@@ -47,7 +57,35 @@ export const MyLeaves: React.FC = () => {
   // Store full reasons for requests with truncated display
   const [fullReasons, setFullReasons] = useState<Map<string, string>>(new Map());
 
-  const userBalances = leaveBalances.filter(b => b.userId === currentUser.id);
+  // Fetch leave balances from backend
+  useEffect(() => {
+    const fetchLeaveBalances = async () => {
+      try {
+        setBalancesLoading(true);
+        setBalancesError(null);
+        const response = await getMyLeaveBalance();
+        setLeaveBalances(response.leaveBalances || []);
+      } catch (err: any) {
+        console.error('Error fetching leave balances:', err);
+        setBalancesError(err.response?.data?.message || err.message || 'Failed to load leave balances');
+        setLeaveBalances([]);
+      } finally {
+        setBalancesLoading(false);
+      }
+    };
+
+    fetchLeaveBalances();
+  }, []);
+
+  const mapLeaveTypeToColor = (leaveType: string): 'annual' | 'casual' | 'sick' | 'maternity' | 'paternity' | 'unpaid' => {
+    const type = leaveType.toLowerCase();
+    if (type.includes('annual')) return 'annual';
+    if (type.includes('casual')) return 'casual';
+    if (type.includes('sick')) return 'sick';
+    if (type.includes('maternity')) return 'maternity';
+    if (type.includes('paternity')) return 'paternity';
+    return 'unpaid';
+  };
 
   // Check if reason should show Read More
   const shouldShowReadMore = (requestId: string): boolean => {
@@ -206,7 +244,7 @@ export const MyLeaves: React.FC = () => {
     : convertedRequests.filter(r => r.status === activeTab);
 
   const handleEdit = (requestId: string) => {
-    const request = leaveRequests.find(r => r.id === requestId);
+    const request = convertedRequestsWithFullReason.find(r => r.id === requestId);
     if (request) {
       setEditingRequest(request);
       setEditDialogOpen(true);
@@ -216,6 +254,17 @@ export const MyLeaves: React.FC = () => {
   const handleEditClose = () => {
     setEditDialogOpen(false);
     setEditingRequest(undefined);
+    // Refresh leave requests after edit
+    const fetchLeaveRequests = async () => {
+      try {
+        const requests = await getAllLeaveRequests();
+        console.log('Refreshed leave requests after edit:', requests);
+        setBackendLeaveRequests(requests);
+      } catch (error) {
+        console.error('Error refreshing leave requests:', error);
+      }
+    };
+    fetchLeaveRequests();
   };
 
   const handleCancelRequest = (requestId: string) => {
@@ -251,9 +300,74 @@ export const MyLeaves: React.FC = () => {
         <div>
           <h2 className="text-lg font-semibold text-foreground mb-4">Leave Balances</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {userBalances.map(balance => (
-              <LeaveBalanceCard key={balance.id} balance={balance} />
-            ))}
+            {balancesLoading && (
+              <>
+                <Skeleton className="h-[140px] w-full rounded-xl" />
+                <Skeleton className="h-[140px] w-full rounded-xl" />
+                <Skeleton className="h-[140px] w-full rounded-xl" />
+              </>
+            )}
+
+            {balancesError && (
+              <div className="col-span-3">
+                <Alert variant="destructive">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>{balancesError}</AlertDescription>
+                </Alert>
+              </div>
+            )}
+
+            {!balancesLoading && !balancesError && Array.isArray(leaveBalances) && leaveBalances.length === 0 && (
+              <div className="col-span-3">
+                <Alert>
+                  <AlertDescription>No leave balances found</AlertDescription>
+                </Alert>
+              </div>
+            )}
+
+            {!balancesLoading && !balancesError && Array.isArray(leaveBalances) && leaveBalances.map((balance) => {
+              const totalDays = balance.allocatedDays + balance.carriedForwardDays;
+              const usedPercentage = totalDays > 0 
+                ? (balance.usedDays / totalDays) * 100 
+                : 0;
+
+              return (
+                <Card key={balance.leaveTypeId} className="p-5 hover:shadow-md transition-shadow">
+                  <div className="flex items-center justify-between mb-4">
+                    <LeaveTypeBadge type={mapLeaveTypeToColor(balance.leaveTypeName)} />
+                    <span className="text-2xl font-bold text-foreground">
+                      {balance.remainingDays}
+                    </span>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Progress value={usedPercentage} className="h-2" />
+                    
+                    <div className="flex justify-between text-xs text-muted-foreground">
+                      <span>Remaining: {balance.remainingDays}</span>
+                      <span>Total: {totalDays}</span>
+                    </div>
+                    
+                    <div className="flex gap-4 text-xs flex-wrap">
+                      <div className="flex items-center gap-1">
+                        <span className="w-2 h-2 rounded-full bg-primary"></span>
+                        <span className="text-muted-foreground">Used: {balance.usedDays}</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <span className="w-2 h-2 rounded-full bg-green-500"></span>
+                        <span className="text-muted-foreground">Allocated: {balance.allocatedDays}</span>
+                      </div>
+                      {balance.carriedForwardDays > 0 && (
+                        <div className="flex items-center gap-1">
+                          <span className="w-2 h-2 rounded-full bg-blue-500"></span>
+                          <span className="text-muted-foreground">Carried: {balance.carriedForwardDays}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </Card>
+              );
+            })}
           </div>
         </div>
 
