@@ -92,8 +92,8 @@ export const LeaveRequestCard: React.FC<LeaveRequestCardProps> = ({
           </div>
 
           <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
-            {/* Edit and Delete buttons - show for pending requests */}
-            {request.status === 'pending' && (
+            {/* Edit and Delete buttons - show for pending requests ONLY if handlers are provided */}
+            {request.status === 'pending' && onEdit && onCancel && (
               <>
                 <Button
                   size="sm"
@@ -119,30 +119,7 @@ export const LeaveRequestCard: React.FC<LeaveRequestCardProps> = ({
             )}
 
             {/* Disabled Edit and Delete buttons when approved or rejected */}
-            {(request.status === 'approved' || request.status === 'rejected') && (
-              <>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="gap-1.5 opacity-50 cursor-not-allowed"
-                  disabled
-                  title="Cannot edit after approval/rejection"
-                >
-                  <Edit className="w-4 h-4" />
-                  Edit
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="gap-1.5 opacity-50 cursor-not-allowed"
-                  disabled
-                  title="Cannot delete after approval/rejection"
-                >
-                  <Trash2 className="w-4 h-4" />
-                  Delete
-                </Button>
-              </>
-            )}
+
 
             {/* Approval action buttons for managers/admins */}
             {request.permissions?.canReject && (
