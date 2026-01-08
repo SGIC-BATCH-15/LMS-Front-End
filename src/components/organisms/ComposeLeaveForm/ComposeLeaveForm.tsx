@@ -20,7 +20,7 @@ import { format, differenceInDays } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { getAllLeaveTypes, LeaveTypeResponseDto } from '@/components/services/leavetypeService';
-import { fetchToRecipient, fetchCcEmails, createLeaveRequest } from '@/components/services/leaveRequestService';
+import { fetchToRecipient, fetchCcEmails, createLeaveRequest, updateLeaveRequest as updateLeaveRequestAPI, getLeaveRequestById, Employee } from '@/components/services/leaveRequestService';
 
 const leaveTypes: { value: LeaveType; label: string }[] = [
   { value: 'annual', label: 'Annual Leave' },
@@ -89,6 +89,44 @@ export const ComposeLeaveForm: React.FC<ComposeLeaveFormProps> = ({ initialData,
         console.log("CC Recipients Final:", ccRecipients);
         setCcRecipientsFromDB(ccRecipients);
 
+        // If editing, fetch the leave request details and preselect TO and CC emails
+        if (initialData) {
+          try {
+            const leaveRequestData = await getLeaveRequestById(Number(initialData.id));
+            console.log("Fetched Leave Request Data for Edit:", leaveRequestData);
+
+            // Preselect TO recipient
+            if (leaveRequestData.toEmail) {
+              const toEmployee: Employee = {
+                id: leaveRequestData.toEmail.id,
+                firstName: leaveRequestData.toEmail.firstName,
+                lastName: leaveRequestData.toEmail.lastName,
+                email: leaveRequestData.toEmail.email,
+              };
+              setToRecipient(toEmployee);
+            }
+
+            // Preselect CC recipients
+            if (leaveRequestData.ccEmails && leaveRequestData.ccEmails.length > 0) {
+              const ccEmployees: Employee[] = leaveRequestData.ccEmails.map(cc => ({
+                id: cc.id,
+                firstName: cc.firstName,
+                lastName: cc.lastName,
+                email: cc.email,
+              }));
+              setCcRecipients(ccEmployees);
+            }
+
+            // Set leave type ID from the fetched data
+            if (leaveRequestData.leaveType) {
+              setLeaveTypeId(leaveRequestData.leaveType.id);
+            }
+          } catch (error) {
+            console.error("Error fetching leave request for edit:", error);
+            toast.error("Failed to load leave request details");
+          }
+        }
+
         setLoading(false);
       } catch (error: any) {
         console.error('Error fetching data:', error);
@@ -101,7 +139,7 @@ export const ComposeLeaveForm: React.FC<ComposeLeaveFormProps> = ({ initialData,
     };
 
     fetchData();
-  }, []);
+  }, [initialData]);
 
   // Filter to show only HR/Admin users for To field
   const availableHrUsers = users.filter(u => u.id !== currentUser.id && (u.role === 'admin' || u.departmentId === 'dept-2'));
@@ -140,6 +178,7 @@ export const ComposeLeaveForm: React.FC<ComposeLeaveFormProps> = ({ initialData,
     console.log('TO Recipient:', toRecipient);
     console.log('CC Recipients:', ccRecipients);
     console.log('Leave Type ID:', leaveTypeId);
+    console.log('Is Editing:', !!initialData);
     
     if (!toRecipient) {
       toast.error('Please select a recipient in the "To" field');
@@ -185,14 +224,37 @@ export const ComposeLeaveForm: React.FC<ComposeLeaveFormProps> = ({ initialData,
       console.log('Full Payload:', JSON.stringify(payload, null, 2));
       console.log('CC Employee IDs:', payload.ccEmailEmployeeIds);
 
-      // Submit to backend
-      const response = await createLeaveRequest(payload);
-
-      if (response.statusCode === 2001) {
-        toast.success(response.statusMessage || 'Leave request submitted successfully!');
+      let response;
+      
+      // Check if we're editing or creating
+      if (initialData) {
+        // Update existing leave request
+        response = await updateLeaveRequestAPI(Number(initialData.id), payload);
         
-        // Optionally, update local state for UI consistency
-        if (!initialData) {
+        if (response.statusCode === 2001 || response.statusCode === 200) {
+          toast.success(response.statusMessage || 'Leave request updated successfully!');
+          
+          // Update the request in context
+          const updatedRequest: LeaveRequest = {
+            ...initialData,
+            leaveType,
+            startDate: format(startDate, 'yyyy-MM-dd'),
+            endDate: format(endDate, 'yyyy-MM-dd'),
+            days: effectiveDays,
+            reason: reason.trim(),
+            toRecipients: [toRecipient.id.toString()],
+            ccRecipients: ccRecipients.map(cc => cc.id.toString()),
+            updatedAt: new Date().toISOString(),
+          };
+          updateLeaveRequest(initialData.id, updatedRequest);
+        }
+      } else {
+        // Create new leave request
+        response = await createLeaveRequest(payload);
+        
+        if (response.statusCode === 2001) {
+          toast.success(response.statusMessage || 'Leave request submitted successfully!');
+          
           // Create approval steps for local context
           const steps: ApprovalStep[] = [
             {
@@ -229,16 +291,17 @@ export const ComposeLeaveForm: React.FC<ComposeLeaveFormProps> = ({ initialData,
           };
           addLeaveRequest(newRequest);
         }
+      }
 
-        if (onClose) {
-          onClose();
-        } else {
-          navigate('/my-leaves');
-        }
+      if (onClose) {
+        onClose();
+      } else {
+        navigate('/my-leaves');
       }
     } catch (error: any) {
       console.error('Error submitting leave request:', error);
-      const errorMessage = error.response?.data?.statusMessage || 'Failed to submit leave request. Please try again.';
+      const errorMessage = error.response?.data?.statusMessage || 
+        `Failed to ${initialData ? 'update' : 'submit'} leave request. Please try again.`;
       toast.error(errorMessage);
     } finally {
       setSubmitting(false);
