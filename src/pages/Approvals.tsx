@@ -1,18 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import { DashboardLayout } from '@/components/templates/DashboardLayout/DashboardLayout';
 import { useAuth } from '@/context/AuthContext';
+import { useLeaveRequests } from '@/context/LeaveRequestContext';
 import { LeaveRequestCard } from '@/components/organisms/LeaveRequestCard/LeaveRequestCard';
 import { StatCard } from '@/components/molecules/StatCard/StatCard';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { CheckCircle, Clock, XCircle, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { LeaveRequest } from '@/types';
-import { 
-  getPendingApprovals, 
-  approveLeaveRequest, 
+import {
+  getPendingApprovals,
+  approveLeaveRequest,
   rejectLeaveRequest,
-  LeaveRequestItem 
+  LeaveRequestItem
 } from '@/components/services/leaveRequestService';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 // Helper function to map backend leave type to frontend format
 const mapLeaveType = (backendType: string): any => {
@@ -30,7 +32,7 @@ const mapLeaveType = (backendType: string): any => {
     'unpaid leave': 'unpaid',
     'unpaid': 'unpaid',
   };
-  
+
   const normalizedType = backendType.toLowerCase().trim();
   return typeMap[normalizedType] || 'casual'; // Default to 'casual' if no match
 };
@@ -63,9 +65,15 @@ const transformLeaveRequest = (item: LeaveRequestItem): LeaveRequest => {
 
 export const Approvals: React.FC = () => {
   const { currentUser } = useAuth();
+  const { leaveRequests, addLeaveRequest, updateLeaveRequest } = useLeaveRequests();
   const [activeTab, setActiveTab] = useState('pending');
   const [pendingRequests, setPendingRequests] = useState<LeaveRequest[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Read More logic
+  const [reasonDialogOpen, setReasonDialogOpen] = useState(false);
+  const [selectedReason, setSelectedReason] = useState<{ employeeName: string; reason: string } | null>(null);
+  const [fullReasons, setFullReasons] = useState<Map<string, string>>(new Map());
 
   // Fetch pending approvals from backend
   const fetchPendingApprovals = async () => {
@@ -74,6 +82,16 @@ export const Approvals: React.FC = () => {
       const data = await getPendingApprovals();
       const transformedData = data.map(transformLeaveRequest);
       setPendingRequests(transformedData);
+
+      // Store full reasons
+      const reasonsMap = new Map<string, string>();
+      transformedData.forEach(req => {
+        const trimmedReason = req.reason.trim();
+        if (trimmedReason.length > 35) {
+          reasonsMap.set(req.id, req.reason);
+        }
+      });
+      setFullReasons(reasonsMap);
     } catch (error: any) {
       console.error('Error fetching pending approvals:', error);
       toast.error('Failed to load pending approvals');
@@ -86,6 +104,26 @@ export const Approvals: React.FC = () => {
     fetchPendingApprovals();
   }, []);
 
+  // Sync pending requests to context so detail page can find them
+  useEffect(() => {
+    if (pendingRequests.length > 0) {
+      pendingRequests.forEach(request => {
+        // Check if request already exists in context to avoid overwriting newer data if any
+        // But here we want to ensure these requests are available.
+        const existingRequest = leaveRequests.find(r => r.id === request.id);
+        if (!existingRequest) {
+          addLeaveRequest(request);
+        } else {
+          // Optional: update if needed, but usually context is truth. 
+          // However, for approvals, this might be the first time we see these requests 
+          // if we haven't visited "My Leaves" or if they are from other users.
+          // Let's update to be safe, assuming fetchPendingApprovals is fresh.
+          updateLeaveRequest(request.id, request);
+        }
+      });
+    }
+  }, [pendingRequests, leaveRequests, addLeaveRequest, updateLeaveRequest]);
+
   const handleApprove = async (id: string) => {
     try {
       await approveLeaveRequest(Number(id));
@@ -94,17 +132,17 @@ export const Approvals: React.FC = () => {
       await fetchPendingApprovals();
     } catch (error: any) {
       console.error('Error approving leave request:', error);
-      
+
       // Extract error message from response
       let errorMessage = 'Failed to approve leave request';
-      
+
       if (error.response?.data) {
         const responseData = error.response.data;
-        
+
         // Check for statusMessage in the response
         if (responseData.statusMessage) {
           errorMessage = responseData.statusMessage;
-        } 
+        }
         // Check for message field
         else if (responseData.message) {
           errorMessage = responseData.message;
@@ -114,7 +152,7 @@ export const Approvals: React.FC = () => {
           errorMessage = 'Cannot approve: Employee has insufficient leave balance for this leave type';
         }
       }
-      
+
       toast.error(errorMessage, {
         duration: 5000,
         description: 'Please check the employee\'s leave balance before approving.',
@@ -130,25 +168,35 @@ export const Approvals: React.FC = () => {
       await fetchPendingApprovals();
     } catch (error: any) {
       console.error('Error rejecting leave request:', error);
-      
+
       // Extract error message from response
       let errorMessage = 'Failed to reject leave request';
-      
+
       if (error.response?.data) {
         const responseData = error.response.data;
-        
+
         // Check for statusMessage in the response
         if (responseData.statusMessage) {
           errorMessage = responseData.statusMessage;
-        } 
+        }
         // Check for message field
         else if (responseData.message) {
           errorMessage = responseData.message;
         }
       }
-      
+
       toast.error(errorMessage);
     }
+  };
+
+  const shouldShowReadMore = (requestId: string): boolean => {
+    return fullReasons.has(requestId);
+  };
+
+  const handleReadMore = (requestId: string, employeeName: string) => {
+    const fullReason = fullReasons.get(requestId) || '';
+    setSelectedReason({ employeeName, reason: fullReason });
+    setReasonDialogOpen(true);
   };
 
   const getFilteredRequests = () => {
@@ -218,13 +266,31 @@ export const Approvals: React.FC = () => {
           <TabsContent value={activeTab} className="mt-4">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               {getFilteredRequests().map(request => (
-                <LeaveRequestCard
-                  key={request.id}
-                  request={request}
-                  showActions={activeTab === 'pending'}
-                  onApprove={handleApprove}
-                  onReject={handleReject}
-                />
+                <div key={request.id} className="relative">
+                  <LeaveRequestCard
+                    request={{
+                      ...request,
+                      reason: shouldShowReadMore(request.id)
+                        ? request.reason.trim().substring(0, 30)
+                        : request.reason
+                    }}
+                    showActions={activeTab === 'pending'}
+                    onApprove={handleApprove}
+                    onReject={handleReject}
+                  />
+                  {shouldShowReadMore(request.id) && (
+                    <span
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleReadMore(request.id, request.employeeName);
+                      }}
+                      className="absolute text-xs text-blue-600 hover:text-blue-700 hover:underline font-medium cursor-pointer z-10"
+                      style={{ top: '48px', left: '390px' }}
+                    >
+                      Read More
+                    </span>
+                  )}
+                </div>
               ))}
               {getFilteredRequests().length === 0 && (
                 <div className="col-span-2 text-center py-12 bg-card border border-border rounded-xl">
@@ -236,6 +302,27 @@ export const Approvals: React.FC = () => {
           </TabsContent>
         </Tabs>
       </div>
-    </DashboardLayout>
+
+      {/* Read More Reason Dialog */}
+      <Dialog open={reasonDialogOpen} onOpenChange={setReasonDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Leave Request Reason</DialogTitle>
+          </DialogHeader>
+          {selectedReason && (
+            <div className="mt-4 space-y-4">
+              <div>
+                <p className="text-sm font-semibold text-muted-foreground mb-1">Employee</p>
+                <p className="text-foreground">{selectedReason.employeeName}</p>
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-muted-foreground mb-1">Reason</p>
+                <p className="text-foreground leading-relaxed whitespace-pre-wrap">{selectedReason.reason}</p>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+    </DashboardLayout >
   );
 };
