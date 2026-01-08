@@ -206,7 +206,7 @@ export const MyLeaves: React.FC = () => {
     : convertedRequests.filter(r => r.status === activeTab);
 
   const handleEdit = (requestId: string) => {
-    const request = leaveRequests.find(r => r.id === requestId);
+    const request = convertedRequestsWithFullReason.find(r => r.id === requestId);
     if (request) {
       setEditingRequest(request);
       setEditDialogOpen(true);
@@ -216,6 +216,17 @@ export const MyLeaves: React.FC = () => {
   const handleEditClose = () => {
     setEditDialogOpen(false);
     setEditingRequest(undefined);
+    // Refresh leave requests after edit
+    const fetchLeaveRequests = async () => {
+      try {
+        const requests = await getAllLeaveRequests();
+        console.log('Refreshed leave requests after edit:', requests);
+        setBackendLeaveRequests(requests);
+      } catch (error) {
+        console.error('Error refreshing leave requests:', error);
+      }
+    };
+    fetchLeaveRequests();
   };
 
   const handleCancelRequest = (requestId: string) => {
