@@ -110,6 +110,20 @@ export interface Notification {
   createdAt: string;
 }
 
+export interface Holiday {
+  id: string;
+  name: string;
+  date: Date;
+  companyId: string;
+  type: 'public' | 'restricted';
+}
+
+export interface WeeklyOff {
+  id: string;
+  companyId: string;
+  days: number[]; // 0 = Sunday, 1 = Monday, etc.
+}
+
 // Backend Employee interface for API integration
 export interface BackendEmployee {
   id: number;
@@ -158,4 +172,22 @@ export interface BackendLeaveRequestResponse {
     createdAt: string;
     updatedAt: string;
   };
+}
+
+// Leave Balance Item for each leave type
+export interface LeaveBalanceItem {
+  leaveTypeId: number;
+  leaveTypeName: string;
+  allocatedDays: number;
+  carriedForwardDays: number;
+  usedDays: number;
+  remainingDays: number;
+}
+
+// Leave Balance API Response
+export interface LeaveBalanceResponse {
+  employeeId: number;
+  employeeName: string;
+  year: number;
+  leaveBalances: LeaveBalanceItem[];
 }

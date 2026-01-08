@@ -1,55 +1,180 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { DashboardLayout } from '@/components/templates/DashboardLayout/DashboardLayout';
 import { useAuth } from '@/context/AuthContext';
 import { LeaveRequestCard } from '@/components/organisms/LeaveRequestCard/LeaveRequestCard';
 import { StatCard } from '@/components/molecules/StatCard/StatCard';
-import { leaveRequests } from '@/data/mockData';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { CheckCircle, Clock, XCircle, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
+import { LeaveRequest } from '@/types';
+import { 
+  getPendingApprovals, 
+  approveLeaveRequest, 
+  rejectLeaveRequest,
+  LeaveRequestItem 
+} from '@/components/services/leaveRequestService';
+
+// Helper function to map backend leave type to frontend format
+const mapLeaveType = (backendType: string): any => {
+  const typeMap: Record<string, string> = {
+    'annual leave': 'annual',
+    'annual': 'annual',
+    'casual leave': 'casual',
+    'casual': 'casual',
+    'sick leave': 'sick',
+    'sick': 'sick',
+    'maternity leave': 'maternity',
+    'maternity': 'maternity',
+    'paternity leave': 'paternity',
+    'paternity': 'paternity',
+    'unpaid leave': 'unpaid',
+    'unpaid': 'unpaid',
+  };
+  
+  const normalizedType = backendType.toLowerCase().trim();
+  return typeMap[normalizedType] || 'casual'; // Default to 'casual' if no match
+};
+
+// Helper function to transform backend leave request to frontend format
+const transformLeaveRequest = (item: LeaveRequestItem): LeaveRequest => {
+  return {
+    id: item.id.toString(),
+    employeeId: item.employee.id.toString(),
+    employeeName: `${item.employee.firstName} ${item.employee.lastName}`,
+    leaveType: mapLeaveType(item.leaveType.leaveType),
+    startDate: item.startDate,
+    endDate: item.endDate,
+    days: item.leaveDuration,
+    reason: item.reason,
+    status: item.status.toLowerCase() as any,
+    toRecipients: [item.toEmail.email],
+    ccRecipients: item.ccEmails.map(cc => cc.email),
+    approvalSteps: [], // Backend doesn't return approval steps in pending approvals
+    currentStep: 1,
+    createdAt: item.createdAt,
+    updatedAt: item.updatedAt,
+    permissions: {
+      canApprove: true,
+      canReject: true,
+      canCancel: false,
+    },
+  };
+};
 
 export const Approvals: React.FC = () => {
   const { currentUser } = useAuth();
   const [activeTab, setActiveTab] = useState('pending');
+  const [pendingRequests, setPendingRequests] = useState<LeaveRequest[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  // Get requests that need current user's approval or have been processed by them
-  const relevantRequests = leaveRequests.filter(r => 
-    r.approvalSteps.some(step => step.approverId === currentUser.id)
-  );
-
-  const pendingRequests = relevantRequests.filter(r => 
-    r.status === 'pending' && 
-    r.approvalSteps.some(step => step.approverId === currentUser.id && step.status === 'pending' && step.order === r.currentStep)
-  );
-
-  const approvedRequests = relevantRequests.filter(r => 
-    r.approvalSteps.some(step => step.approverId === currentUser.id && step.status === 'approved')
-  );
-
-  const rejectedRequests = relevantRequests.filter(r => 
-    r.approvalSteps.some(step => step.approverId === currentUser.id && step.status === 'rejected')
-  );
-
-  const handleApprove = (id: string) => {
-    toast.success('Leave request approved!');
+  // Fetch pending approvals from backend
+  const fetchPendingApprovals = async () => {
+    try {
+      setLoading(true);
+      const data = await getPendingApprovals();
+      const transformedData = data.map(transformLeaveRequest);
+      setPendingRequests(transformedData);
+    } catch (error: any) {
+      console.error('Error fetching pending approvals:', error);
+      toast.error('Failed to load pending approvals');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleReject = (id: string) => {
-    toast.error('Leave request rejected');
+  useEffect(() => {
+    fetchPendingApprovals();
+  }, []);
+
+  const handleApprove = async (id: string) => {
+    try {
+      await approveLeaveRequest(Number(id));
+      toast.success('Leave request approved successfully!');
+      // Refresh the list
+      await fetchPendingApprovals();
+    } catch (error: any) {
+      console.error('Error approving leave request:', error);
+      
+      // Extract error message from response
+      let errorMessage = 'Failed to approve leave request';
+      
+      if (error.response?.data) {
+        const responseData = error.response.data;
+        
+        // Check for statusMessage in the response
+        if (responseData.statusMessage) {
+          errorMessage = responseData.statusMessage;
+        } 
+        // Check for message field
+        else if (responseData.message) {
+          errorMessage = responseData.message;
+        }
+        // Check if it's a bad request with insufficient leave days
+        else if (error.response?.status === 400) {
+          errorMessage = 'Cannot approve: Employee has insufficient leave balance for this leave type';
+        }
+      }
+      
+      toast.error(errorMessage, {
+        duration: 5000,
+        description: 'Please check the employee\'s leave balance before approving.',
+      });
+    }
+  };
+
+  const handleReject = async (id: string) => {
+    try {
+      await rejectLeaveRequest(Number(id));
+      toast.error('Leave request rejected');
+      // Refresh the list
+      await fetchPendingApprovals();
+    } catch (error: any) {
+      console.error('Error rejecting leave request:', error);
+      
+      // Extract error message from response
+      let errorMessage = 'Failed to reject leave request';
+      
+      if (error.response?.data) {
+        const responseData = error.response.data;
+        
+        // Check for statusMessage in the response
+        if (responseData.statusMessage) {
+          errorMessage = responseData.statusMessage;
+        } 
+        // Check for message field
+        else if (responseData.message) {
+          errorMessage = responseData.message;
+        }
+      }
+      
+      toast.error(errorMessage);
+    }
   };
 
   const getFilteredRequests = () => {
+    // For now, we only have pending requests from the backend
+    // Backend doesn't maintain approved/rejected history per approver yet
     switch (activeTab) {
       case 'pending':
         return pendingRequests;
       case 'approved':
-        return approvedRequests;
+        return []; // TODO: Backend needs to provide this data
       case 'rejected':
-        return rejectedRequests;
+        return []; // TODO: Backend needs to provide this data
       default:
-        return relevantRequests;
+        return pendingRequests;
     }
   };
+
+  if (loading) {
+    return (
+      <DashboardLayout title="Approvals" subtitle="Manage leave request approvals">
+        <div className="flex items-center justify-center py-12">
+          <Clock className="w-8 h-8 animate-spin text-muted-foreground" />
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout title="Approvals" subtitle="Manage leave request approvals">
@@ -64,19 +189,19 @@ export const Approvals: React.FC = () => {
           />
           <StatCard
             title="Approved"
-            value={approvedRequests.length}
+            value={0}
             subtitle="By you"
             icon={CheckCircle}
           />
           <StatCard
             title="Rejected"
-            value={rejectedRequests.length}
+            value={0}
             subtitle="By you"
             icon={XCircle}
           />
           <StatCard
             title="Total"
-            value={relevantRequests.length}
+            value={pendingRequests.length}
             subtitle="All requests"
             icon={AlertCircle}
           />
@@ -86,9 +211,9 @@ export const Approvals: React.FC = () => {
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList>
             <TabsTrigger value="pending">Pending ({pendingRequests.length})</TabsTrigger>
-            <TabsTrigger value="approved">Approved ({approvedRequests.length})</TabsTrigger>
-            <TabsTrigger value="rejected">Rejected ({rejectedRequests.length})</TabsTrigger>
-            <TabsTrigger value="all">All ({relevantRequests.length})</TabsTrigger>
+            <TabsTrigger value="approved">Approved (0)</TabsTrigger>
+            <TabsTrigger value="rejected">Rejected (0)</TabsTrigger>
+            <TabsTrigger value="all">All ({pendingRequests.length})</TabsTrigger>
           </TabsList>
           <TabsContent value={activeTab} className="mt-4">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
