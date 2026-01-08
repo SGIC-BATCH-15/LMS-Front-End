@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { useLeaveRequests } from '@/context/LeaveRequestContext';
+import { useHolidays } from '@/context/HolidayContext';
 import { User, LeaveType, LeaveRequest, ApprovalStep, BackendEmployee } from '@/types';
 import { users, leaveBalances } from '@/data/mockData';
 import { UserAvatar } from '@/components/atoms/Avatar/UserAvatar';
@@ -38,6 +39,7 @@ export const ComposeLeaveForm: React.FC<ComposeLeaveFormProps> = ({ initialData,
   const navigate = useNavigate();
   const { currentUser } = useAuth();
   const { addLeaveRequest, updateLeaveRequest } = useLeaveRequests();
+  const { holidays } = useHolidays();
 
   // State for backend data
   const [leaveTypesFromDB, setLeaveTypesFromDB] = useState<LeaveTypeResponseDto[]>([]);
@@ -439,6 +441,18 @@ export const ComposeLeaveForm: React.FC<ComposeLeaveFormProps> = ({ initialData,
                     const today = new Date();
                     today.setHours(0, 0, 0, 0);
                     return date < today;
+                  }}
+                  modifiers={{
+                    holiday: holidays.map(h => h.date)
+                  }}
+                  modifiersStyles={{
+                    holiday: { color: 'red', fontWeight: 'bold' }
+                  }}
+                  classNames={{
+                    day_selected: "bg-transparent text-foreground hover:bg-accent focus:bg-accent",
+                    day_range_middle: "bg-accent/50",
+                    day_range_start: "border border-blue-500",
+                    day_range_end: "border border-blue-500",
                   }}
                 />
               </PopoverContent>
