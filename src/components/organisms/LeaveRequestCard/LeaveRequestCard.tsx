@@ -158,7 +158,7 @@ export const LeaveRequestCard: React.FC<LeaveRequestCardProps> = ({
             {request.permissions?.canApprove && (
               <Button
                 size="icon"
-                className="rounded-full w-8 h-8 bg-blue-600 hover:bg-blue-700 shadow-sm"
+                className="rounded-full w-8 h-8 shadow-sm"
                 onClick={() => onApprove?.(request.id)}
                 title="Approve"
               >

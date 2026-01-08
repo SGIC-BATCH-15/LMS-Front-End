@@ -111,7 +111,7 @@ export const LeaveTypes: React.FC = () => {
                                 <h2 className="text-lg font-semibold text-gray-900">Leave Types</h2>
                                 <p className="text-sm text-gray-500 mt-1">Manage available leave types</p>
                             </div>
-                            <Button onClick={() => handleOpenDialog()} className="bg-blue-600 hover:bg-blue-700">
+                            <Button onClick={() => handleOpenDialog()}>
                                 <Plus className="w-4 h-4 mr-2" />
                                 Add Leave Type
                             </Button>
@@ -205,7 +205,7 @@ export const LeaveTypes: React.FC = () => {
                             <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
                                 Cancel
                             </Button>
-                            <Button onClick={handleSave} className="bg-blue-600 hover:bg-blue-700">
+                            <Button onClick={handleSave}>
                                 {editingType ? 'Update' : 'Create'}
                             </Button>
                         </DialogFooter>

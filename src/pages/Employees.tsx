@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
+import { useAuth } from '@/context/AuthContext';
 import { DashboardLayout } from '@/components/templates/DashboardLayout/DashboardLayout';
 import { UserAvatar } from '@/components/atoms/Avatar/UserAvatar';
-import { users as initialUsers } from '@/data/mockData';
 import { departments } from '@/data/departments';
 import { companies } from '@/data/companies';
 import { roles } from '@/data/roles';
@@ -28,7 +28,7 @@ import {
 } from "@/components/ui/pagination";
 
 export const Employees: React.FC = () => {
-  const [users, setUsers] = useState<User[]>(initialUsers);
+  const { users, addUser, updateUser, deleteUser, addLeaveBalances } = useAuth();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterDepartment, setFilterDepartment] = useState('all');
@@ -52,8 +52,7 @@ export const Employees: React.FC = () => {
   // Derived state for department filtering in dialog
   const dialogDepartments = departments.filter(d => d.companyId === formData.companyId);
 
-  // Mock balances state (in a real app this would be fetched)
-  const [balances, setBalances] = useState<LeaveBalance[]>([]);
+
 
   const filteredUsers = users.filter(user => {
     const matchesSearch = user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -153,7 +152,7 @@ export const Employees: React.FC = () => {
         previousExperience: formData.previousExperience,
       };
 
-      setUsers(users.map(u => u.id === editingUser.id ? updatedUser : u));
+      updateUser(updatedUser);
       toast.success('Employee updated successfully');
     } else {
       // Create new user
@@ -172,16 +171,9 @@ export const Employees: React.FC = () => {
         previousExperience: formData.previousExperience,
       };
 
-      // Create DEFAULT balances for the new user (Standard Policy)
-      // In real app, this would come from policy configuration
-      const newBalances: LeaveBalance[] = [
-        { id: `bal-a-${newUser.id}`, userId: newUser.id, leaveType: 'annual', total: 20, used: 0, pending: 0, year: 2025 },
-        { id: `bal-c-${newUser.id}`, userId: newUser.id, leaveType: 'casual', total: 12, used: 0, pending: 0, year: 2025 },
-        { id: `bal-s-${newUser.id}`, userId: newUser.id, leaveType: 'sick', total: 7, used: 0, pending: 0, year: 2025 },
-      ];
-
-      setUsers([...users, newUser]);
-      setBalances(prev => [...prev, ...newBalances]);
+      addUser(newUser);
+      // NOTE: We do NOT adding balances here anymore. 
+      // Balances will be allocated via the "Leave Allocation" page as per user workflow.
 
       toast.success('Employee added successfully');
     }
@@ -191,22 +183,13 @@ export const Employees: React.FC = () => {
 
   const handleDelete = (userId: string) => {
     if (window.confirm('Are you sure you want to delete this employee?')) {
-      setUsers(users.filter(u => u.id !== userId));
-      // Optionally remove balances too
-      setBalances(prev => prev.filter(b => b.userId !== userId));
+      deleteUser(userId);
       toast.success('Employee deleted successfully');
     }
   };
 
   const getDepartmentName = (deptId: string) => {
     return departments.find(d => d.id === deptId)?.name || 'Unknown';
-  };
-
-  const getUserBalances = (userId: string) => {
-    // Combine mock balances with newly created ones
-    const local = balances.filter(b => b.userId === userId);
-    if (local.length > 0) return local;
-    return [];
   };
 
   return (

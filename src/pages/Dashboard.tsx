@@ -1,16 +1,19 @@
 import React from 'react';
 import { DashboardLayout } from '@/components/templates/DashboardLayout/DashboardLayout';
 import { useAuth } from '@/context/AuthContext';
+import { useLeaveRequests } from '@/context/LeaveRequestContext';
 import { LeaveBalanceCard } from '@/components/molecules/LeaveBalanceCard/LeaveBalanceCard';
 import { StatCard } from '@/components/molecules/StatCard/StatCard';
 import { LeaveRequestCard } from '@/components/organisms/LeaveRequestCard/LeaveRequestCard';
-import { leaveBalances, leaveRequests } from '@/data/mockData';
+import { leaveBalances } from '@/data/mockData';
 import { CalendarDays, CheckCircle, Clock, TrendingUp, AlertCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
+import { Calendar } from '@/components/ui/calendar';
 
 export const Dashboard: React.FC = () => {
   const { currentUser } = useAuth();
+  const { leaveRequests } = useLeaveRequests();
   const navigate = useNavigate();
 
   const userBalances = leaveBalances.filter(b => b.userId === currentUser.id);
@@ -86,18 +89,78 @@ export const Dashboard: React.FC = () => {
           )}
         </div>
 
-        {/* Leave Balances */}
-        <div>
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-foreground">Leave Balances</h2>
-            <Button variant="ghost" size="sm" onClick={() => navigate('/my-leaves')}>
-              View All
-            </Button>
+        {/* Leave Balances & Calendar Section */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Left Column: Leave Balances */}
+          <div className="lg:col-span-2 space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-foreground">Leave Balances</h2>
+              <Button variant="ghost" size="sm" onClick={() => navigate('/my-leaves')}>
+                View All
+              </Button>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {userBalances.map(balance => (
+                <LeaveBalanceCard key={balance.id} balance={balance} />
+              ))}
+            </div>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {userBalances.map(balance => (
-              <LeaveBalanceCard key={balance.id} balance={balance} />
-            ))}
+
+          {/* Right Column: Calendar */}
+          <div className="bg-card border border-border rounded-xl p-4 shadow-sm h-fit">
+            <h3 className="font-semibold mb-4 text-center">My Leave Calendar</h3>
+            <div className="flex justify-center">
+              <Calendar
+                mode="default"
+                modifiers={{
+                  approved: userRequests
+                    .filter(r => r.status === 'approved')
+                    .flatMap(r => {
+                      const start = new Date(r.startDate);
+                      const end = new Date(r.endDate);
+                      const dates = [];
+                      for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+                        dates.push(new Date(d));
+                      }
+                      return dates;
+                    }),
+                  pending: userRequests
+                    .filter(r => r.status === 'pending')
+                    .flatMap(r => {
+                      const start = new Date(r.startDate);
+                      const end = new Date(r.endDate);
+                      const dates = [];
+                      for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+                        dates.push(new Date(d));
+                      }
+                      return dates;
+                    })
+                }}
+                modifiersStyles={{
+                  approved: {
+                    backgroundColor: '#ef4444', // Red for approved
+                    color: 'white',
+                    borderRadius: '50%'
+                  },
+                  pending: {
+                    backgroundColor: '#22c55e', // Green for pending
+                    color: 'white',
+                    borderRadius: '50%'
+                  }
+                }}
+                className="rounded-md border shadow-sm w-fit"
+              />
+            </div>
+            <div className="mt-4 flex items-center justify-center gap-4 text-xs text-muted-foreground">
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full bg-red-500" />
+                <span>Approved</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full bg-green-500" />
+                <span>Pending</span>
+              </div>
+            </div>
           </div>
         </div>
 

@@ -48,6 +48,8 @@ export interface LeaveBalance {
   used: number;
   pending: number;
   year: number;
+  allocated?: number;
+  carryForward?: number;
 }
 
 export interface ApprovalStep {

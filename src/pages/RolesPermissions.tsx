@@ -149,7 +149,7 @@ export const RolesPermissions: React.FC = () => {
                                     Configure which permissions are granted to each role
                                 </CardDescription>
                             </div>
-                            <Button onClick={handleOpenDialog} className="bg-blue-600 hover:bg-blue-700">
+                            <Button onClick={handleOpenDialog}>
                                 <Plus className="w-4 h-4 mr-2" />
                                 Add Permission
                             </Button>
@@ -240,7 +240,7 @@ export const RolesPermissions: React.FC = () => {
                                 <Button type="button" variant="outline" onClick={handleCloseDialog}>
                                     Cancel
                                 </Button>
-                                <Button type="submit" className="bg-blue-600 hover:bg-blue-700">
+                                <Button type="submit">
                                     Create Permission
                                 </Button>
                             </DialogFooter>

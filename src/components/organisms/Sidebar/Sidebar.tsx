@@ -68,6 +68,7 @@ const getNavItems = (): MenuItem[] => {
         { to: '/leave-policies', label: 'Leave Policies', icon: FileText, permission: 'manage_policies' },
         { to: '/email-configuration', label: 'Email Configuration', icon: Mail, permission: 'system_settings' },
         { to: '/leave-notification-rules', label: 'Leave Notification Rules', icon: Settings, permission: 'system_settings' },
+        { to: '/leave-allocation', label: 'Leave Allocation', icon: CalendarPlus, permission: 'system_settings' },
         { to: '/holiday-configuration', label: 'Holiday Configuration', icon: CalendarDays, permission: 'system_settings' },
       ],
     },
@@ -124,6 +125,17 @@ export const Sidebar: React.FC = () => {
         }
       }
     });
+
+    // Scroll active item into view
+    // Use a small timeout to allow for state updates and rendering
+    const timer = setTimeout(() => {
+      const activeElement = document.querySelector('.border-l-4.border-white');
+      if (activeElement) {
+        activeElement.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      }
+    }, 100);
+
+    return () => clearTimeout(timer);
   }, [location.pathname]);
 
   // If no user is authenticated, don't render the sidebar
@@ -175,7 +187,7 @@ export const Sidebar: React.FC = () => {
           >
             <div className={cn("flex items-center gap-3", collapsed && "justify-center")}>
               <item.icon className="w-5 h-5 flex-shrink-0" />
-              {!collapsed && <span className="font-medium text-sm">{item.label}</span>}
+              {!collapsed && <span className="font-medium text-sm whitespace-nowrap">{item.label}</span>}
             </div>
             {!collapsed && (
               isExpanded ? (
@@ -218,7 +230,7 @@ export const Sidebar: React.FC = () => {
             isChild && !collapsed ? 'w-4 h-4' : 'w-5 h-5',
             'flex-shrink-0'
           )} />
-          {!collapsed && <span className={cn('font-medium', !isChild && 'text-sm')}>{item.label}</span>}
+          {!collapsed && <span className={cn('font-medium whitespace-nowrap', !isChild && 'text-sm')}>{item.label}</span>}
         </NavLink>
       );
     }
@@ -232,7 +244,7 @@ export const Sidebar: React.FC = () => {
       isCollapsed ? "w-20" : "w-72"
     )}>
       {/* Logo/Header */}
-      <div className="p-6 border-b border-gray-700 bg-gray-800 flex items-center justify-between">
+      <div className="h-[72px] px-6 border-b border-gray-700 bg-gray-800 flex items-center justify-between">
         {!isCollapsed && (
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center">

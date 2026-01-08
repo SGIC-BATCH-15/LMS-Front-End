@@ -162,7 +162,7 @@ export const EmailConfiguration: React.FC = () => {
                                 <h2 className="text-lg font-semibold text-gray-900">Email Configurations</h2>
                                 <p className="text-sm text-gray-500 mt-1">Manage your SMTP server settings</p>
                             </div>
-                            <Button onClick={handleOpenAddModal} className="bg-blue-600 hover:bg-blue-700">
+                            <Button onClick={handleOpenAddModal}>
                                 <Plus className="w-4 h-4 mr-2" />
                                 Add Configuration
                             </Button>
@@ -387,7 +387,7 @@ export const EmailConfiguration: React.FC = () => {
                                 <Button type="button" variant="outline" onClick={handleCloseModal}>
                                     Cancel
                                 </Button>
-                                <Button type="submit" className="bg-blue-600 hover:bg-blue-700">
+                                <Button type="submit">
                                     {selectedConfig ? 'Update' : 'Create'}
                                 </Button>
                             </DialogFooter>
