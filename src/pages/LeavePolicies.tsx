@@ -187,6 +187,7 @@ export const LeavePolicies: React.FC = () => {
   };
 
   const handleDeletePolicy = async (policyId: string) => {
+    if (!window.confirm("Are you sure you want to delete this leave policy?")) return;
     try {
       // Call the delete API
       await deleteLeavePolicy(parseInt(policyId));
