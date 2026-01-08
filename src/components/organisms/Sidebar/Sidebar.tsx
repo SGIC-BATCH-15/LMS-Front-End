@@ -70,6 +70,7 @@ const getNavItems = (): MenuItem[] => {
         { to: '/leave-policies', label: 'Leave Policies', icon: FileText, permission: 'manage_policies' },
         { to: '/email-configuration', label: 'Email Configuration', icon: Mail, permission: 'system_settings' },
         { to: '/leave-notification-rules', label: 'Leave Notification Rules', icon: Settings, permission: 'system_settings' },
+        { to: '/leave-allocation', label: 'Leave Allocation', icon: FileText, permission: 'manage_policies' },
       ],
     },
   ];
@@ -110,7 +111,7 @@ export const Sidebar: React.FC = () => {
   const filteredNavItems = currentUser ? filterItems(navItems) : [];
 
 
-    // Enhanced logout with backend call
+  // Enhanced logout with backend call
   const handleLogout = async () => {
     const token = localStorage.getItem('authToken');
 
