@@ -27,6 +27,7 @@ import { LeaveNotificationRules } from "./pages/LeaveNotificationRules";
 import { LeaveAllocation } from "./pages/LeaveAllocation";
 
 import NotFound from "./pages/NotFound";
+import { HolidayConfiguration } from "./pages/HolidayConfiguration";
 
 const queryClient = new QueryClient();
 
@@ -41,7 +42,8 @@ const App = () => (
             <Routes>
               <Route path="/login" element={<Login />} />
               <Route path="/forgot-password" element={<ForgotPassword />} />
-              <Route path="/" element={<ProtectedRoute requiredPermission="view_dashboard"><Dashboard /></ProtectedRoute>} />
+              <Route path="/" element={<Navigate to="/login" replace />} />
+              <Route path="/dashboard" element={<ProtectedRoute requiredPermission="view_dashboard"><Dashboard /></ProtectedRoute>} />
               <Route path="/apply-leave" element={<ProtectedRoute requiredPermission="apply_leave"><ApplyLeave /></ProtectedRoute>} />
               <Route path="/my-leaves" element={<ProtectedRoute requiredPermission="view_own_leaves"><MyLeaves /></ProtectedRoute>} />
               <Route path="/leave/:id" element={<ProtectedRoute requiredPermission="view_own_leaves"><LeaveDetail /></ProtectedRoute>} />
@@ -59,7 +61,7 @@ const App = () => (
               <Route path="/leave-notification-rules" element={<ProtectedRoute requiredPermission="system_settings"><LeaveNotificationRules /></ProtectedRoute>} />
               <Route path="/leave-allocation" element={<ProtectedRoute requiredPermission="manage_policies"><LeaveAllocation /></ProtectedRoute>} />
               <Route path="/reports" element={<ProtectedRoute requiredPermission="view_reports"><Reports /></ProtectedRoute>} />
-              <Route path="*" element={<NotFound />} />
+              <Route path="/holiday-configuration" element={<ProtectedRoute requiredPermission="system_settings"><HolidayConfiguration /></ProtectedRoute>} />              <Route path="*" element={<NotFound />} />
             </Routes>
           </BrowserRouter>
         </TooltipProvider>
