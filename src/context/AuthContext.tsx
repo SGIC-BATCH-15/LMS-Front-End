@@ -12,6 +12,7 @@ import { roles as initialRoles, Role } from '@/data/roles';
 interface AuthContextType {
   currentUser: User | null;
   isAuthenticated: boolean;
+  isLoading: boolean;
   login: (email: string, password: string) => Promise<boolean>;
   logout: () => void;
   rolePermissions: Record<UserRole, Set<string>>;
@@ -31,6 +32,7 @@ const AUTH_STORAGE_KEY = 'leaveflow_auth_user';
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
   const [rolePermissions, setRolePermissions] = useState<Record<UserRole, Set<string>>>(defaultRolePermissions);
   const [roles, setRoles] = useState<Role[]>([]);
   const [permissions, setPermissions] = useState<Permission[]>(initialPermissions);
@@ -59,6 +61,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     if (roles.length === 0) {
       setRoles(initialRoles);
     }
+    
+    setIsLoading(false);
   }, []);
 
   const login = async (email: string, password: string): Promise<boolean> => {
@@ -141,6 +145,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     <AuthContext.Provider value={{
       currentUser,
       isAuthenticated: currentUser !== null,
+      isLoading,
       login,
       logout,
       rolePermissions,
