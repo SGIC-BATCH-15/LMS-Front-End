@@ -7,6 +7,7 @@ interface DashboardLayoutProps {
   subtitle?: string;
   showApplyButton?: boolean;
   children: React.ReactNode;
+  actions?: React.ReactNode;
 }
 
 export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
@@ -14,12 +15,13 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
   subtitle,
   showApplyButton = true,
   children,
+  actions,
 }) => {
   return (
     <div className="flex h-screen bg-background">
       <Sidebar />
       <div className="flex-1 flex flex-col overflow-hidden">
-        <Header title={title} subtitle={subtitle} showApplyButton={showApplyButton} />
+        <Header title={title} subtitle={subtitle} showApplyButton={showApplyButton} actions={actions} />
         <main className="flex-1 overflow-auto p-6">
           {children}
         </main>

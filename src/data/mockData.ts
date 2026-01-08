@@ -144,17 +144,17 @@ export const leavePolicies: LeavePolicy[] = [
 
 export const leaveBalances: LeaveBalance[] = [
   // Alex Thompson (staff) balances
-  { id: 'bal-1', userId: 'user-6', leaveType: 'annual', total: 15, used: 5, pending: 2, year: 2025 },
-  { id: 'bal-2', userId: 'user-6', leaveType: 'casual', total: 8, used: 2, pending: 0, year: 2025 },
-  { id: 'bal-3', userId: 'user-6', leaveType: 'sick', total: 10, used: 1, pending: 0, year: 2025 },
+  { id: 'bal-1', userId: 'user-6', leaveType: 'annual', total: 15, allocated: 12, carryForward: 3, used: 5, pending: 2, year: 2025 },
+  { id: 'bal-2', userId: 'user-6', leaveType: 'casual', total: 8, allocated: 8, carryForward: 0, used: 2, pending: 0, year: 2025 },
+  { id: 'bal-3', userId: 'user-6', leaveType: 'sick', total: 10, allocated: 10, carryForward: 0, used: 1, pending: 0, year: 2025 },
   // Michael Chen (manager) balances
-  { id: 'bal-4', userId: 'user-2', leaveType: 'annual', total: 22, used: 8, pending: 0, year: 2025 },
-  { id: 'bal-5', userId: 'user-2', leaveType: 'casual', total: 10, used: 3, pending: 1, year: 2025 },
-  { id: 'bal-6', userId: 'user-2', leaveType: 'sick', total: 12, used: 0, pending: 0, year: 2025 },
+  { id: 'bal-4', userId: 'user-2', leaveType: 'annual', total: 22, allocated: 20, carryForward: 2, used: 8, pending: 0, year: 2025 },
+  { id: 'bal-5', userId: 'user-2', leaveType: 'casual', total: 10, allocated: 10, carryForward: 0, used: 3, pending: 1, year: 2025 },
+  { id: 'bal-6', userId: 'user-2', leaveType: 'sick', total: 12, allocated: 12, carryForward: 0, used: 0, pending: 0, year: 2025 },
   // Sarah Johnson (admin) balances
-  { id: 'bal-7', userId: 'user-1', leaveType: 'annual', total: 25, used: 10, pending: 0, year: 2025 },
-  { id: 'bal-8', userId: 'user-1', leaveType: 'casual', total: 12, used: 4, pending: 0, year: 2025 },
-  { id: 'bal-9', userId: 'user-1', leaveType: 'sick', total: 15, used: 2, pending: 0, year: 2025 },
+  { id: 'bal-7', userId: 'user-1', leaveType: 'annual', total: 25, allocated: 20, carryForward: 5, used: 10, pending: 0, year: 2025 },
+  { id: 'bal-8', userId: 'user-1', leaveType: 'casual', total: 12, allocated: 12, carryForward: 0, used: 4, pending: 0, year: 2025 },
+  { id: 'bal-9', userId: 'user-1', leaveType: 'sick', total: 15, allocated: 15, carryForward: 0, used: 2, pending: 0, year: 2025 },
 ];
 
 export const leaveRequests: LeaveRequest[] = [

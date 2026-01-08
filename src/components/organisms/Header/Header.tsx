@@ -16,17 +16,18 @@ interface HeaderProps {
   title: string;
   subtitle?: string;
   showApplyButton?: boolean;
+  actions?: React.ReactNode;
 }
 
-export const Header: React.FC<HeaderProps> = ({ title, subtitle, showApplyButton = true }) => {
+export const Header: React.FC<HeaderProps> = ({ title, subtitle, showApplyButton = true, actions }) => {
   const navigate = useNavigate();
   const { currentUser } = useAuth();
   const userNotifications = notifications.filter(n => n.userId === currentUser.id);
   const unreadCount = userNotifications.filter(n => !n.read).length;
 
   return (
-    <header className="bg-gray-300 border-b border-border px-6 py-4">
-      <div className="flex items-center justify-between">
+    <header className="h-[72px] bg-white border-b border-border px-6 flex items-center">
+      <div className="flex items-center justify-between w-full">
         <div>
           <h1 className="text-2xl font-bold text-foreground">{title}</h1>
           {subtitle && <p className="text-sm text-muted-foreground mt-1">{subtitle}</p>}
@@ -34,6 +35,7 @@ export const Header: React.FC<HeaderProps> = ({ title, subtitle, showApplyButton
 
 
         <div className="flex items-center gap-4">
+          {actions}
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>

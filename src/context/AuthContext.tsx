@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { User, UserRole } from '@/types';
-import { users } from '@/data/mockData';
+import { User, UserRole, LeaveBalance } from '@/types';
+import { users as initialUsers, leaveBalances as initialLeaveBalances } from '@/data/mockData';
 import { defaultRolePermissions, permissions as initialPermissions, Permission } from '@/data/permissions';
 
 import { roles as initialRoles, Role } from '@/data/roles';
@@ -19,6 +19,13 @@ interface AuthContextType {
   deleteRole: (roleId: string) => void;
   permissions: Permission[];
   addPermission: (permission: Permission) => void;
+  users: User[];
+  addUser: (user: User) => void;
+  updateUser: (user: User) => void;
+  deleteUser: (userId: string) => void;
+  leaveBalances: LeaveBalance[];
+  addLeaveBalances: (balances: LeaveBalance[]) => void;
+  updateLeaveBalance: (balance: LeaveBalance) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -30,6 +37,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [rolePermissions, setRolePermissions] = useState<Record<UserRole, Set<string>>>(defaultRolePermissions);
   const [roles, setRoles] = useState<Role[]>([]);
   const [permissions, setPermissions] = useState<Permission[]>(initialPermissions);
+
+  const [users, setUsers] = useState<User[]>(initialUsers);
+  // Persist balances globally so allocations aren't lost on navigation
+  const [leaveBalances, setLeaveBalancesState] = useState<LeaveBalance[]>(initialLeaveBalances);
 
   // Load user from localStorage on mount
   useEffect(() => {
@@ -67,6 +78,35 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const logout = () => {
     setCurrentUser(null);
     localStorage.removeItem(AUTH_STORAGE_KEY);
+  };
+
+  // User Management Functions
+  const addUser = (user: User) => {
+    setUsers(prev => [user, ...prev]);
+  };
+
+  const updateUser = (updatedUser: User) => {
+    setUsers(prev => {
+      const newUsers = prev.map(u => u.id === updatedUser.id ? updatedUser : u);
+      // If current user is updated, update local state too
+      if (currentUser && currentUser.id === updatedUser.id) {
+        setCurrentUser(updatedUser);
+        localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(updatedUser));
+      }
+      return newUsers;
+    });
+  };
+
+  const deleteUser = (userId: string) => {
+    setUsers(prev => prev.filter(u => u.id !== userId));
+  };
+
+  const addLeaveBalances = (newBalances: LeaveBalance[]) => {
+    setLeaveBalancesState(prev => [...newBalances, ...prev]);
+  };
+
+  const updateLeaveBalance = (updatedBalance: LeaveBalance) => {
+    setLeaveBalancesState(prev => prev.map(b => b.id === updatedBalance.id ? updatedBalance : b));
   };
 
   const updateRolePermission = (role: UserRole, permissionId: string, hasAccess: boolean) => {
@@ -122,7 +162,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       updateRole,
       deleteRole,
       permissions,
-      addPermission
+      addPermission,
+      users,
+      addUser,
+      updateUser,
+      deleteUser,
+      leaveBalances,
+      addLeaveBalances,
+      updateLeaveBalance
     }}>
       {children}
     </AuthContext.Provider>

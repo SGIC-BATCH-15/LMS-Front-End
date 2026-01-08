@@ -251,7 +251,7 @@ export const LeaveNotificationRules: React.FC = () => {
                     <div className="border-t border-gray-200 p-6 flex justify-center">
                         <Button
                             onClick={handleSaveConfiguration}
-                            className="bg-blue-600 hover:bg-blue-700 px-8"
+                            className="px-8"
                         >
                             Save Configuration
                         </Button>
