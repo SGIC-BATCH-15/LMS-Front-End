@@ -173,3 +173,21 @@ export interface BackendLeaveRequestResponse {
     updatedAt: string;
   };
 }
+
+// Leave Balance Item for each leave type
+export interface LeaveBalanceItem {
+  leaveTypeId: number;
+  leaveTypeName: string;
+  allocatedDays: number;
+  carriedForwardDays: number;
+  usedDays: number;
+  remainingDays: number;
+}
+
+// Leave Balance API Response
+export interface LeaveBalanceResponse {
+  employeeId: number;
+  employeeName: string;
+  year: number;
+  leaveBalances: LeaveBalanceItem[];
+}
