@@ -23,7 +23,7 @@ import {
 import { Plus, Pencil, Trash2, Search, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Company as CompanyType } from '@/data/companies';
-import { addCompany, getAllCompanies, updateCompany, deleteCompany } from '@/components/services/companyService';
+import { addCompany, getAllCompanies, updateCompany, deleteCompany, searchCompanies } from '@/components/services/companyService';
 import {
     Pagination,
     PaginationContent,
@@ -51,10 +51,7 @@ export const Company: React.FC = () => {
     });
 
     // Filter and Pagination Logic
-    const filteredCompanies = companies.filter(company =>
-        company.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        company.email.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    const filteredCompanies = companies;
 
     const totalPages = Math.ceil(filteredCompanies.length / itemsPerPage);
     const indexOfLastItem = currentPage * itemsPerPage;
@@ -62,19 +59,20 @@ export const Company: React.FC = () => {
     const currentItems = filteredCompanies.slice(indexOfFirstItem, indexOfLastItem);
 
     // Fetch companies on component mount
+    // Reset to page 1 when search changes and fetch results
     useEffect(() => {
-        fetchCompanies();
-    }, []);
+        const delayDebounceFn = setTimeout(() => {
+            setCurrentPage(1);
+            fetchCompanies(searchTerm);
+        }, 500);
 
-    // Reset to page 1 when search changes
-    useEffect(() => {
-        setCurrentPage(1);
+        return () => clearTimeout(delayDebounceFn);
     }, [searchTerm]);
 
-    const fetchCompanies = async () => {
+    const fetchCompanies = async (query: string = '') => {
         try {
             setIsFetching(true);
-            const data = await getAllCompanies();
+            const data = query ? await searchCompanies(query) : await getAllCompanies();
             setCompanies(data);
         } catch (error: any) {
             console.error('Failed to fetch companies:', error);
@@ -122,12 +120,32 @@ export const Company: React.FC = () => {
             return;
         }
 
+        // Validate company name (only letters and spaces allowed)
+        const nameRegex = /^[a-zA-Z\s]+$/;
+        if (!nameRegex.test(formData.name)) {
+            toast.error('Company name can only contain letters and spaces (no numbers or symbols).');
+            return;
+        }
+
+
         try {
             setIsLoading(true);
 
             console.log('Sending company data:', formData);
 
             if (editingCompany) {
+                // Check if any field has changed
+                const hasChanges =
+                    formData.name !== editingCompany.name ||
+                    formData.address !== editingCompany.address ||
+                    formData.email !== editingCompany.email ||
+                    formData.phoneNumber !== editingCompany.phoneNumber;
+
+                if (!hasChanges) {
+                    toast.info('No changes detected.');
+                    return;
+                }
+
                 // Update existing company
                 await updateCompany(editingCompany.id, formData);
                 toast.success('Company updated successfully');
@@ -142,13 +160,27 @@ export const Company: React.FC = () => {
             handleCloseDialog();
         } catch (error: any) {
             console.error('Failed to save company:', error);
-            console.error('Error response:', error?.response);
-            console.error('Error data:', error?.response?.data);
 
-            const errorMessage = error?.response?.data?.message
-                || error?.response?.data?.error
-                || error?.message
-                || 'Failed to save company';
+            let errorMessage = 'Failed to save company';
+
+            if (error?.response?.data) {
+                const data = error.response.data;
+                // Check for statusMessage first (common in this backend)
+                if (data.statusMessage) {
+                    errorMessage = data.statusMessage;
+                } else if (data.message) {
+                    errorMessage = data.message;
+                } else if (data.error) {
+                    errorMessage = data.error;
+                } else if (data.data && Array.isArray(data.data) && data.data.length > 0) {
+                    // Handle validation errors in data array
+                    errorMessage = data.data.map((err: any) =>
+                        typeof err === 'string' ? err : err.message || JSON.stringify(err)
+                    ).join('. ');
+                }
+            } else if (error?.message) {
+                errorMessage = error.message;
+            }
 
             toast.error(errorMessage);
         } finally {
@@ -175,12 +207,15 @@ export const Company: React.FC = () => {
                 console.error('Delete error response:', error?.response);
                 console.error('Delete error data:', error?.response?.data);
 
-                const backendMessage = error?.response?.data?.statusMessage
-                    || error?.response?.data?.message
-                    || error?.response?.data?.error
-                    || error?.message;
+                // Improved error extraction for delete
+                const responseData = error?.response?.data;
+                const backendMessage = responseData?.statusMessage
+                    || responseData?.message
+                    || responseData?.error
+                    || error?.message
+                    || 'Failed to delete company';
 
-                let userMessage = '';
+                let userMessage = backendMessage;
 
                 if (backendMessage?.toLowerCase().includes('linked') ||
                     backendMessage?.toLowerCase().includes('related')) {
@@ -290,35 +325,30 @@ export const Company: React.FC = () => {
 
                 {/* Pagination */}
                 {totalPages > 1 && (
-                    <Pagination>
-                        <PaginationContent>
-                            <PaginationItem>
-                                <PaginationPrevious
-                                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                                    className={currentPage === 1 ? 'pointer-events-none opacity-50' : 'cursor-pointer'}
-                                />
-                            </PaginationItem>
-
-                            {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-                                <PaginationItem key={page}>
-                                    <PaginationLink
-                                        isActive={page === currentPage}
-                                        onClick={() => setCurrentPage(page)}
-                                        className="cursor-pointer"
-                                    >
-                                        {page}
-                                    </PaginationLink>
+                    <div className="flex items-center justify-between mt-4">
+                        <div className="text-sm text-muted-foreground">
+                            Total Companies: {filteredCompanies.length}
+                        </div>
+                        <Pagination className="w-auto mx-0">
+                            <PaginationContent>
+                                <PaginationItem>
+                                    <PaginationPrevious
+                                        onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                        className={currentPage === 1 ? 'pointer-events-none opacity-50' : 'cursor-pointer'}
+                                    />
                                 </PaginationItem>
-                            ))}
 
-                            <PaginationItem>
-                                <PaginationNext
-                                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                                    className={currentPage === totalPages ? 'pointer-events-none opacity-50' : 'cursor-pointer'}
-                                />
-                            </PaginationItem>
-                        </PaginationContent>
-                    </Pagination>
+                                {/* Page numbers removed as requested */}
+
+                                <PaginationItem>
+                                    <PaginationNext
+                                        onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                                        className={currentPage === totalPages ? 'pointer-events-none opacity-50' : 'cursor-pointer'}
+                                    />
+                                </PaginationItem>
+                            </PaginationContent>
+                        </Pagination>
+                    </div>
                 )}
 
                 {/* Add/Edit Company Dialog */}
