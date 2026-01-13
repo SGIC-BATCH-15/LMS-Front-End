@@ -34,9 +34,21 @@ export const EmailConfiguration: React.FC = () => {
     const [isLoading, setIsLoading] = useState(false);
     const [emailError, setEmailError] = useState('');
     const [ccEmailError, setCcEmailError] = useState('');
+    const [hostNameError, setHostNameError] = useState('');
 
     // Initial form state
     const [formData, setFormData] = useState<EmailConfigDTO>({
+        displayName: '',
+        sentEmail: '',
+        hostName: '',
+        port: 587,
+        protocol: 'SMTP',
+        password: '',
+        ccMailAddress: '',
+    });
+
+    // Track original form data for change detection
+    const [originalFormData, setOriginalFormData] = useState<EmailConfigDTO>({
         displayName: '',
         sentEmail: '',
         hostName: '',
@@ -92,7 +104,7 @@ export const EmailConfiguration: React.FC = () => {
 
     const handleOpenEditModal = (config: EmailConfigDTO) => {
         setSelectedConfig(config);
-        setFormData({
+        const editFormData = {
             displayName: config.displayName,
             sentEmail: config.sentEmail,
             hostName: config.hostName,
@@ -100,7 +112,9 @@ export const EmailConfiguration: React.FC = () => {
             protocol: config.protocol,
             password: '', // Password not returned by backend, must be re-entered
             ccMailAddress: config.ccMailAddress || '',
-        });
+        };
+        setFormData(editFormData);
+        setOriginalFormData(editFormData);
         setEnableCC(!!config.ccMailAddress);
         setShowPassword(false);
         setIsModalOpen(true);
@@ -112,13 +126,43 @@ export const EmailConfiguration: React.FC = () => {
         setShowPassword(false);
     };
 
+    // Check if form data has been modified compared to original
+    const hasFormChanged = (): boolean => {
+        return (
+            formData.displayName !== originalFormData.displayName ||
+            formData.sentEmail !== originalFormData.sentEmail ||
+            formData.hostName !== originalFormData.hostName ||
+            formData.port !== originalFormData.port ||
+            formData.protocol !== originalFormData.protocol ||
+            formData.password !== originalFormData.password ||
+            formData.ccMailAddress !== originalFormData.ccMailAddress
+        );
+    };
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setEmailError('');
         setCcEmailError('');
+        setHostNameError('');
 
         // Email validation regex
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        // Hostname validation regex - allows only letters, numbers, dots, and hyphens
+        const hostnameRegex = /^[a-zA-Z0-9.-]+$/;
+
+        // Validate hostname
+        if (!formData.hostName.trim()) {
+            setHostNameError('Hostname is required');
+            return;
+        }
+        if (!hostnameRegex.test(formData.hostName)) {
+            setHostNameError('Hostname must contain only letters, numbers, dots (.), and hyphens (-). No spaces, special characters, or URL prefixes allowed.');
+            return;
+        }
+        if (formData.hostName.includes('http://') || formData.hostName.includes('https://')) {
+            setHostNameError('Hostname must not include URL prefixes like http:// or https://');
+            return;
+        }
 
         // Validate sentEmail
         if (!emailRegex.test(formData.sentEmail)) {
@@ -325,10 +369,16 @@ export const EmailConfiguration: React.FC = () => {
                                         id="hostName"
                                         placeholder="smtp.gmail.com"
                                         value={formData.hostName}
-                                        onChange={(e) => setFormData({ ...formData, hostName: e.target.value })}
+                                        onChange={(e) => {
+                                            setFormData({ ...formData, hostName: e.target.value });
+                                            setHostNameError('');
+                                        }}
                                         required
-                                        disabled={!!selectedConfig}
+                                        className={hostNameError ? 'border-red-500' : ''}
                                     />
+                                    {hostNameError && (
+                                        <p className="text-sm text-red-500 mt-1">{hostNameError}</p>
+                                    )}
                                 </div>
                                 <div className="space-y-2">
                                     <Label htmlFor="port">
@@ -341,7 +391,6 @@ export const EmailConfiguration: React.FC = () => {
                                         value={formData.port}
                                         onChange={(e) => setFormData({ ...formData, port: parseInt(e.target.value) })}
                                         required
-                                        disabled={!!selectedConfig}
                                     />
                                 </div>
                                 <div className="space-y-2 col-span-2">
@@ -353,7 +402,6 @@ export const EmailConfiguration: React.FC = () => {
                                         onValueChange={(value) =>
                                             setFormData({ ...formData, protocol: value })
                                         }
-                                        disabled={!!selectedConfig}
                                     >
                                         <SelectTrigger>
                                             <SelectValue placeholder="Select protocol" />
@@ -422,7 +470,11 @@ export const EmailConfiguration: React.FC = () => {
                                 <Button type="button" variant="outline" onClick={handleCloseModal}>
                                     Cancel
                                 </Button>
-                                <Button type="submit" className="bg-blue-600 hover:bg-blue-700">
+                                <Button
+                                    type="submit"
+                                    className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                                    disabled={selectedConfig && !hasFormChanged()}
+                                >
                                     {selectedConfig ? 'Update' : 'Create'}
                                 </Button>
                             </DialogFooter>
