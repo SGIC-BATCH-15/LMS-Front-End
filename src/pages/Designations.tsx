@@ -1,341 +1,499 @@
-import React, { useEffect, useState } from 'react';
-import { DashboardLayout } from '@/components/templates/DashboardLayout/DashboardLayout';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import React, { useEffect, useState } from "react";
+import { DashboardLayout } from "@/components/templates/DashboardLayout/DashboardLayout";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
-} from '@/components/ui/dialog';
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
-} from '@/components/ui/table';
-import { Plus, Pencil, Trash2 } from 'lucide-react';
-import { toast } from 'sonner';
-import { Designation } from '@/data/designationsList';
-import designationService from '@/components/services/designationService';
-import { departmentService } from '@/components/services/departmentService';
-import { Department } from '@/types';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Plus, Pencil, Trash2 } from "lucide-react";
+import { toast } from "sonner";
+import { Designation as DesignationType } from "@/data/designationsList";
+import designationService from "@/components/services/designationService";
+import { departmentService } from "@/components/services/departmentService";
+import { Department } from "@/types";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+
+// Update the Designation type to include optional departmentName and department fields
+interface Designation {
+  id: string;
+  name: string;
+  departmentName?: string;
+  department?: {
+    name?: string;
+  };
+}
 
 export const Designations: React.FC = () => {
-    const [designations, setDesignations] = useState<Designation[]>([]);
-    const [loading, setLoading] = useState(false);
-    const [isDialogOpen, setIsDialogOpen] = useState(false);
-    const [newDesignationName, setNewDesignationName] = useState('');
-    const [editingDesignation, setEditingDesignation] = useState<Designation | null>(null);
-    const [departments, setDepartments] = useState<Department[]>([]);
-    const [selectedDeptId, setSelectedDeptId] = useState<string>('');
-    const [currentPage, setCurrentPage] = useState(1);
-    const itemsPerPage = 5;
+  const [designations, setDesignations] = useState<Designation[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [newDesignationName, setNewDesignationName] = useState("");
+  const [editingDesignation, setEditingDesignation] =
+    useState<Designation | null>(null);
+  const [departments, setDepartments] = useState<Department[]>([]);
+  const [selectedDeptId, setSelectedDeptId] = useState<string>("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 5;
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [filterDepartment, setFilterDepartment] = useState("");
+  const [isUpdateEnabled, setIsUpdateEnabled] = useState(false);
 
-    const handleOpenDialog = (designation?: Designation) => {
-        if (designation) {
-            setEditingDesignation(designation);
-            setNewDesignationName(designation.name);
-            // set selected department from normalized fields if present
-            const deptId = (designation as any).departmentId || (designation as any).department?.id || (designation as any).department_id;
-            setSelectedDeptId(deptId ? deptId.toString() : '');
-        } else {
-            setEditingDesignation(null);
-            setNewDesignationName('');
-            setSelectedDeptId('');
-        }
-        setIsDialogOpen(true);
+  const handleOpenDialog = (designation?: Designation) => {
+    if (designation) {
+      setEditingDesignation(designation);
+      setNewDesignationName(designation.name);
+      // set selected department from normalized fields if present
+      const deptId =
+        (designation as any).departmentId ||
+        (designation as any).department?.id ||
+        (designation as any).department_id;
+      setSelectedDeptId(deptId ? deptId.toString() : "");
+    } else {
+      setEditingDesignation(null);
+      setNewDesignationName("");
+      setSelectedDeptId("");
+    }
+    setIsDialogOpen(true);
+  };
+
+  useEffect(() => {
+    const load = async () => {
+      setLoading(true);
+      try {
+        const deps = await departmentService.getDepartmentsByCompanyId("1");
+        setDepartments(deps);
+        const data = await designationService.getAll();
+        // normalize department id/name if backend uses department_id
+        const normalized = (data || []).map((d: any) => ({
+          ...d,
+          departmentId:
+            d.department_id?.toString() ||
+            d.departmentId ||
+            d.department?.id?.toString(),
+          departmentName:
+            d.department?.name || d.departmentName || d.department_name || "",
+        }));
+        // if missing departmentName, try to derive from departments list
+        normalized.forEach((n: any) => {
+          if (!n.departmentName && n.departmentId) {
+            const found = deps.find(
+              (x) => x.id.toString() === n.departmentId.toString()
+            );
+            if (found)
+              n.departmentName = found.departmentName || found.name || "";
+          }
+        });
+        setDesignations(normalized);
+      } catch (err) {
+        toast.error("Failed to load designations or departments");
+      } finally {
+        setLoading(false);
+      }
     };
+    load();
+  }, []);
 
-    useEffect(() => {
-        const load = async () => {
-            setLoading(true);
-            try {
-                const deps = await departmentService.getDepartmentsByCompanyId('1');
-                setDepartments(deps);
-                const data = await designationService.getAll();
-                // normalize department id/name if backend uses department_id
-                const normalized = (data || []).map((d: any) => ({
-                    ...d,
-                    departmentId: d.department_id?.toString() || d.departmentId || d.department?.id?.toString(),
-                    departmentName: d.department?.name || d.departmentName || d.department_name || ''
-                }));
-                // if missing departmentName, try to derive from departments list
-                normalized.forEach((n: any) => {
-                    if (!n.departmentName && n.departmentId) {
-                        const found = deps.find(x => x.id.toString() === n.departmentId.toString());
-                        if (found) n.departmentName = (found.departmentName || found.name || '');
-                    }
-                });
-                setDesignations(normalized);
-            } catch (err) {
-                toast.error('Failed to load designations or departments');
-            } finally {
-                setLoading(false);
-            }
-        };
-        load();
-    }, []);
+  const handleSave = async () => {
+    if (!newDesignationName.trim()) {
+      toast.error("Please enter a designation name");
+      return;
+    }
+    if (!selectedDeptId) {
+      toast.error("Please select a department");
+      return;
+    }
 
-    const handleSave = async () => {
-        if (!newDesignationName.trim()) {
-            toast.error('Please enter a designation name');
-            return;
+    try {
+      if (editingDesignation) {
+        const updated = await designationService.update(
+          editingDesignation.id,
+          newDesignationName.trim(),
+          selectedDeptId
+        );
+        console.log("Designations: update response", updated);
+        const normalized = {
+          ...updated,
+          departmentId:
+            (updated as any).department_id?.toString() || selectedDeptId,
+          departmentName:
+            (updated as any).department?.name ||
+            departments.find((d) => d.id.toString() === selectedDeptId)?.name ||
+            "",
+        } as any;
+        setDesignations((prev) =>
+          prev.map((d) => (d.id === normalized.id ? normalized : d))
+        );
+        toast.success("Designation updated successfully");
+      } else {
+        const created = await designationService.add(
+          newDesignationName.trim(),
+          selectedDeptId
+        );
+        console.log("Designations: create response", created);
+        const normalized = {
+          ...created,
+          departmentId:
+            (created as any).department_id?.toString() || selectedDeptId,
+          departmentName:
+            (created as any).department?.name ||
+            departments.find((d) => d.id.toString() === selectedDeptId)?.name ||
+            "",
+        } as any;
+        setDesignations((prev) => [normalized, ...prev]);
+        toast.success("Designation added successfully");
+      }
+      setIsDialogOpen(false);
+    } catch (err: any) {
+      // try to extract meaningful validation/server message
+      const getMessage = (error: any) => {
+        if (!error) return "Something went wrong";
+        const resp = error.response;
+
+        // Handle HTTP 400 (validation) specifically
+        if (resp && resp.status === 400) {
+          const data = resp.data;
+          // Common backend: data.data as array of validation errors
+          if (data?.data && Array.isArray(data.data)) {
+            return data.data.map((d: any) => d.message || d).join(". ");
+          }
+
+          // data.data may be an object mapping fields to messages array
+          if (data?.data && typeof data.data === "object") {
+            const parts: string[] = [];
+            Object.keys(data.data).forEach((k) => {
+              const v = data.data[k];
+              if (Array.isArray(v))
+                parts.push(...v.map((x: any) => (x.message ? x.message : x)));
+              else if (typeof v === "string") parts.push(v);
+              else if (v?.message) parts.push(v.message);
+            });
+            if (parts.length) return parts.join(". ");
+          }
+
+          // data.errors as an array
+          if (data?.errors && Array.isArray(data.errors))
+            return data.errors.map((e: any) => e.message || e).join(". ");
+
+          // fallback to message/statusMessage inside 400 response
+          if (data?.message) return data.message;
+          if (data?.statusMessage) return data.statusMessage;
         }
-        if (!selectedDeptId) {
-            toast.error('Please select a department');
-            return;
-        }
 
-        try {
-            if (editingDesignation) {
-                const updated = await designationService.update(editingDesignation.id, newDesignationName.trim(), selectedDeptId);
-                console.log('Designations: update response', updated);
-                const normalized = {
-                    ...updated,
-                    departmentId: (updated as any).department_id?.toString() || selectedDeptId,
-                    departmentName: (updated as any).department?.name || departments.find(d => d.id.toString() === selectedDeptId)?.name || ''
-                } as any;
-                setDesignations(prev => prev.map(d => d.id === normalized.id ? normalized : d));
-                toast.success('Designation updated successfully');
-            } else {
-                const created = await designationService.add(newDesignationName.trim(), selectedDeptId);
-                console.log('Designations: create response', created);
-                const normalized = {
-                    ...created,
-                    departmentId: (created as any).department_id?.toString() || selectedDeptId,
-                    departmentName: (created as any).department?.name || departments.find(d => d.id.toString() === selectedDeptId)?.name || ''
-                } as any;
-                setDesignations(prev => [...prev, normalized]);
-                toast.success('Designation added successfully');
-            }
-            setIsDialogOpen(false);
-        } catch (err: any) {
-            // try to extract meaningful validation/server message
-            const getMessage = (error: any) => {
-                if (!error) return 'Something went wrong';
-                const resp = error.response;
+        // Non-400 or fallback parsing
+        const body = (resp && resp.data) || error;
+        if (body?.message) return body.message;
+        if (body?.statusMessage) return body.statusMessage;
+        if (body?.error) return body.error;
+        if (body?.data && typeof body.data === "string") return body.data;
+        if (body?.data && Array.isArray(body.data))
+          return body.data.map((d: any) => d.message || d).join(", ");
+        if (error.message) return error.message;
+        return "Operation failed. Please check input and try again.";
+      };
 
-                // Handle HTTP 400 (validation) specifically
-                if (resp && resp.status === 400) {
-                    const data = resp.data;
-                    // Common backend: data.data as array of validation errors
-                    if (data?.data && Array.isArray(data.data)) {
-                        return data.data.map((d: any) => d.message || d).join('. ');
-                    }
+      const userMessage = getMessage(err);
+      console.error("Designations: save error", err);
+      toast.error(userMessage);
+    }
+  };
 
-                    // data.data may be an object mapping fields to messages array
-                    if (data?.data && typeof data.data === 'object') {
-                        const parts: string[] = [];
-                        Object.keys(data.data).forEach((k) => {
-                            const v = data.data[k];
-                            if (Array.isArray(v)) parts.push(...v.map((x: any) => (x.message ? x.message : x)));
-                            else if (typeof v === 'string') parts.push(v);
-                            else if (v?.message) parts.push(v.message);
-                        });
-                        if (parts.length) return parts.join('. ');
-                    }
+  const openDeleteDialog = (id: string) => {
+    setDeleteId(id);
+    setIsDeleteDialogOpen(true);
+  };
 
-                    // data.errors as an array
-                    if (data?.errors && Array.isArray(data.errors)) return data.errors.map((e: any) => e.message || e).join('. ');
+  const confirmDelete = async () => {
+    if (!deleteId) return;
+    try {
+      await designationService.remove(deleteId);
+      setDesignations((prev) => prev.filter((d) => d.id !== deleteId));
+      toast.success("Designation deleted successfully!");
+    } catch (err) {
+      toast.error("Failed to delete designation. Please try again.");
+    } finally {
+      setIsDeleteDialogOpen(false);
+      setDeleteId(null);
+    }
+  };
 
-                    // fallback to message/statusMessage inside 400 response
-                    if (data?.message) return data.message;
-                    if (data?.statusMessage) return data.statusMessage;
-                }
+  // Pagination calculations
+  const totalPages = Math.ceil(designations.length / itemsPerPage);
+  const indexOfLastItem = currentPage * itemsPerPage;
+  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
 
-                // Non-400 or fallback parsing
-                const body = (resp && resp.data) || error;
-                if (body?.message) return body.message;
-                if (body?.statusMessage) return body.statusMessage;
-                if (body?.error) return body.error;
-                if (body?.data && typeof body.data === 'string') return body.data;
-                if (body?.data && Array.isArray(body.data)) return body.data.map((d: any) => d.message || d).join(', ');
-                if (error.message) return error.message;
-                return 'Operation failed. Please check input and try again.';
-            };
+  const filteredDesignations = designations.filter((item) => {
+    const matchesSearch = item.name
+      .toLowerCase()
+      .includes(searchTerm.toLowerCase());
+    const matchesFilter = filterDepartment
+      ? item.departmentName === filterDepartment
+      : true;
+    return matchesSearch && matchesFilter;
+  });
 
-            const userMessage = getMessage(err);
-            console.error('Designations: save error', err);
-            toast.error(userMessage);
-        }
-    };
+  const currentItems = filteredDesignations.slice(
+    indexOfFirstItem,
+    indexOfLastItem
+  );
 
-    const handleDelete = async (id: string) => {
-        if (!window.confirm('Are you sure you want to delete this designation? This action cannot be undone.')) return;
-        try {
-            await designationService.remove(id);
-            setDesignations(prev => prev.filter(d => d.id !== id));
-            toast.success('Designation deleted successfully!');
-        } catch (err) {
-            toast.error('Failed to delete designation. Please try again.');
-        }
-    };
+  useEffect(() => {
+    if (editingDesignation) {
+      setIsUpdateEnabled(false);
+    }
+  }, [editingDesignation]);
 
-    // Pagination calculations
-    const totalPages = Math.ceil(designations.length / itemsPerPage);
-    const indexOfLastItem = currentPage * itemsPerPage;
-    const indexOfFirstItem = indexOfLastItem - itemsPerPage;
-    const currentItems = designations.slice(indexOfFirstItem, indexOfLastItem);
+  const handleInputChange = (setter) => (e) => {
+    setter(e.target.value);
+    setIsUpdateEnabled(true);
+  };
 
-    return (
-        <DashboardLayout
-            title="Designations"
-            subtitle="Manage master list of designations"
-        >
-            <div className="space-y-6">
-                {/* Header with Add Button */}
-                <div className="flex justify-between items-center">
-                    <p className="text-muted-foreground">
-                        Add and manage job titles available in the system
-                    </p>
-                    <Button onClick={() => handleOpenDialog()}>
-                        <Plus className="w-4 h-4 mr-2" />
-                        Add Designation
-                    </Button>
-                </div>
+  return (
+    <DashboardLayout
+      title="Designations"
+      subtitle="Manage master list of designations"
+    >
+      <div className="space-y-6">
+        {/* Header with Add Button */}
+        <div className="flex justify-between items-center">
+          <p className="text-muted-foreground">
+            Add and manage job titles available in the system
+          </p>
+          <Button onClick={() => handleOpenDialog()}>
+            <Plus className="w-4 h-4 mr-2" />
+            Add Designation
+          </Button>
+        </div>
 
-                {/* Designations Table */}
-                <div className="border rounded-lg bg-white">
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead>Designation Name</TableHead>
-                                <TableHead>Department</TableHead>
-                                <TableHead className="text-center">Actions</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {currentItems.map((item) => (
-                                <TableRow key={item.id}>
-                                    <TableCell className="font-medium">
-                                        {item.name}
-                                    </TableCell>
-                                    <TableCell>
-                                        <span className="text-sm text-muted-foreground">{(item as any).departmentName || (item as any).department?.name || '-'}</span>
-                                    </TableCell>
-                                    <TableCell className="text-center">
-                                        <div className="flex justify-center gap-2">
-                                            <Button
-                                                variant="ghost"
-                                                size="sm"
-                                                onClick={() => handleOpenDialog(item)}
-                                                title="Edit designation"
-                                            >
-                                                <Pencil className="w-4 h-4" />
-                                            </Button>
-                                            <Button
-                                                variant="ghost"
-                                                size="sm"
-                                                className="text-destructive hover:text-destructive"
-                                                onClick={() => handleDelete(item.id)}
-                                                title="Delete designation"
-                                            >
-                                                <Trash2 className="w-4 h-4" />
-                                            </Button>
-                                        </div>
-                                    </TableCell>
-                                </TableRow>
-                            ))}
-                            {designations.length === 0 && (
-                                <TableRow>
-                                    <TableCell colSpan={3} className="text-center py-8 text-muted-foreground">
-                                        No designations found. Add one to get started.
-                                    </TableCell>
-                                </TableRow>
-                            )}
-                        </TableBody>
-                    </Table>
-                </div>
+        {/* Search and Filter */}
+        <div className="flex justify-between items-center mb-4">
+          <input
+            type="text"
+            placeholder="Search designations..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="border rounded px-2 py-1 text-sm"
+          />
+          <select
+            value={filterDepartment}
+            onChange={(e) => setFilterDepartment(e.target.value)}
+            className="border rounded px-2 py-1 text-sm"
+          >
+            <option value="">All Departments</option>
+            {Array.from(
+              new Set(designations.map((item) => item.departmentName))
+            ).map((dept) => (
+              <option key={dept} value={dept}>
+                {dept}
+              </option>
+            ))}
+          </select>
+        </div>
 
-                {/* Pagination */}
-                {totalPages > 1 && (
-                    <div className="flex justify-between items-center mt-4">
-                        <span className="text-sm text-muted-foreground">
-                            Total Designations: {designations.length}
-                        </span>
-                        <div className="flex gap-2">
-                            <Button
-                                variant="outline"
-                                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                                disabled={currentPage === 1}
-                            >
-                                Previous
-                            </Button>
-                            <span className="px-2 flex items-center">
-                                Page {currentPage} of {totalPages}
-                            </span>
-                            <Button
-                                variant="outline"
-                                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                                disabled={currentPage === totalPages}
-                            >
-                                Next
-                            </Button>
-                        </div>
+        {/* Designations Table */}
+        <div className="border rounded-lg bg-white">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Designation Name</TableHead>
+                <TableHead>Department</TableHead>
+                <TableHead className="text-center">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {currentItems.map((item) => (
+                <TableRow key={item.id}>
+                  <TableCell className="font-medium">{item.name}</TableCell>
+                  <TableCell>
+                    <span className="text-sm text-muted-foreground">
+                      {item?.departmentName || item?.department?.name || "-"}
+                    </span>
+                  </TableCell>
+                  <TableCell className="text-center">
+                    <div className="flex justify-center gap-2">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleOpenDialog(item)}
+                        title="Edit designation"
+                      >
+                        <Pencil className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-destructive hover:text-destructive"
+                        onClick={() => openDeleteDialog(item.id)}
+                        title="Delete designation"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
                     </div>
-                )}
+                  </TableCell>
+                </TableRow>
+              ))}
+              {designations.length === 0 && (
+                <TableRow>
+                  <TableCell
+                    colSpan={3}
+                    className="text-center py-8 text-muted-foreground"
+                  >
+                    No designations found. Add one to get started.
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </div>
 
-                {/* Add/Edit Designation Dialog */}
-                <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-                    <DialogContent className="sm:max-w-[425px]">
-                        <DialogHeader>
-                            <DialogTitle>
-                                {editingDesignation ? 'Edit Designation' : 'Add New Designation'}
-                            </DialogTitle>
-                            <DialogDescription>
-                                {editingDesignation
-                                    ? 'Update the job title details.'
-                                    : 'Create a new job title to be used in employee records.'}
-                            </DialogDescription>
-                        </DialogHeader>
-                        <div className="grid gap-4 py-4">
-                            <div className="space-y-2">
-                                <Label htmlFor="name">
-                                    Designation Name <span className="text-red-500">*</span>
-                                </Label>
-                                <Input
-                                    id="name"
-                                    value={newDesignationName}
-                                    onChange={(e) => setNewDesignationName(e.target.value)}
-                                    placeholder="e.g. Senior Software Engineer"
-                                />
-                            </div>
-                            <div className="space-y-2">
-                                <Label htmlFor="department">Department <span className="text-red-500">*</span></Label>
-                                <Select value={selectedDeptId} onValueChange={(v) => setSelectedDeptId(v)}>
-                                    <SelectTrigger>
-                                        <SelectValue placeholder={departments.length === 0 ? 'Loading departments...' : 'Select Department'} />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {departments.length === 0 ? (
-                                            <SelectItem value="">No departments</SelectItem>
-                                        ) : (
-                                            departments.map(dept => (
-                                                <SelectItem key={dept.id} value={dept.id.toString()}>{(dept as any).departmentName || dept.name}</SelectItem>
-                                            ))
-                                        )}
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                        </div>
-                        <DialogFooter>
-                            <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
-                                Cancel
-                            </Button>
-                            <Button onClick={handleSave}>
-                                {editingDesignation ? 'Update' : 'Save'}
-                            </Button>
-                        </DialogFooter>
-                    </DialogContent>
-                </Dialog>
+        {/* Pagination */}
+        <div className="flex justify-between items-center mt-4">
+          <span className="text-sm text-muted-foreground">
+            Total Designations: {designations.length}
+          </span>
+          <div className="flex gap-2">
+            <Button
+              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+            >
+              Prev
+            </Button>
+            <span className="px-2 flex items-center">
+              Page {currentPage} of {totalPages}
+            </span>
+            <Button
+              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+              disabled={currentPage >= totalPages}
+            >
+              Next
+            </Button>
+          </div>
+        </div>
+
+        {/* Add/Edit Designation Dialog */}
+        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+          <DialogContent className="sm:max-w-[425px]">
+            <DialogHeader>
+              <DialogTitle>
+                {editingDesignation
+                  ? "Edit Designation"
+                  : "Add New Designation"}
+              </DialogTitle>
+              <DialogDescription>
+                {editingDesignation
+                  ? "Update the job title details."
+                  : "Create a new job title to be used in employee records."}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="name">
+                  Designation Name <span className="text-red-500">*</span>
+                </Label>
+                <Input
+                  id="name"
+                  value={newDesignationName}
+                  onChange={handleInputChange(setNewDesignationName)}
+                  placeholder="e.g. Senior Software Engineer"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="department">
+                  Department <span className="text-red-500">*</span>
+                </Label>
+                <Select
+                  value={selectedDeptId}
+                  onValueChange={(v) => {
+                    setSelectedDeptId(v);
+                    setIsUpdateEnabled(true);
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue
+                      placeholder={
+                        departments.length === 0
+                          ? "Loading departments..."
+                          : "Select Department"
+                      }
+                    />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {departments.length === 0 ? (
+                      <SelectItem value="">No departments</SelectItem>
+                    ) : (
+                      departments.map((dept) => (
+                        <SelectItem key={dept.id} value={dept.id.toString()}>
+                          {(dept as any).departmentName || dept.name}
+                        </SelectItem>
+                      ))
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
-        </DashboardLayout>
-    );
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button onClick={handleSave} disabled={!isUpdateEnabled}>
+                {editingDesignation ? "Update" : "Save"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Delete Confirmation Dialog */}
+        <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+          <DialogContent className="sm:max-w-[250px] p-4">
+            <DialogHeader>
+              <DialogTitle className="text-sm">Confirm Delete</DialogTitle>
+              <DialogDescription className="text-xs">
+                Are you sure you want to delete this designation? This action
+                cannot be undone.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="flex justify-end gap-3 mt-3">
+              <Button
+                variant="outline"
+                size="sm"
+                className="px-4 py-1"
+                onClick={() => setIsDeleteDialogOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                size="sm"
+                className="px-4 py-1"
+                onClick={confirmDelete}
+              >
+                Delete
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      </div>
+    </DashboardLayout>
+  );
 };
