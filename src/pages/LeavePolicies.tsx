@@ -9,7 +9,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { Plus, Pencil, Trash2, RefreshCw } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Plus, Pencil, Trash2, RefreshCw, AlertCircle } from 'lucide-react';
 import { LeavePolicy, LeaveType } from '@/types';
 import {
   getAllLeavePolicies,
@@ -57,6 +58,7 @@ export const LeavePolicies: React.FC = () => {
   // Track original form data for update button state
   const [originalFormData, setOriginalFormData] = useState<PolicyFormData>(initialFormData);
   const [modifiedFields, setModifiedFields] = useState<Set<string>>(new Set());
+  const [formError, setFormError] = useState<string | null>(null);
 
   // Client-Side Pagination State
   const [currentPage, setCurrentPage] = useState(1);
@@ -134,6 +136,9 @@ export const LeavePolicies: React.FC = () => {
       [field]: value,
     }));
     
+    // Clear global form error on any input change
+    if (formError) setFormError(null);
+
     // Track modified fields when in edit mode
     if (editingPolicy) {
       const isModified = originalFormData[field] !== value;
@@ -231,11 +236,7 @@ export const LeavePolicies: React.FC = () => {
     });
 
     if (isOverlapping) {
-        toast({
-            variant: "destructive",
-            title: "Error",
-            description: "Experience range overlaps with an existing policy for this Leave Type.",
-        });
+        setFormError("Experience range overlaps with an existing policy for this Leave Type.");
         return;
     }
 
@@ -304,6 +305,7 @@ export const LeavePolicies: React.FC = () => {
     setOriginalFormData(policyFormData);
     setModifiedFields(new Set());
     setErrors({});
+    setFormError(null);
     setIsDialogOpen(true);
   };
 
@@ -313,6 +315,7 @@ export const LeavePolicies: React.FC = () => {
     setOriginalFormData(initialFormData);
     setModifiedFields(new Set());
     setErrors({});
+    setFormError(null);
     setIsDialogOpen(true);
   };
 
@@ -375,6 +378,7 @@ export const LeavePolicies: React.FC = () => {
               setOriginalFormData(initialFormData);
               setModifiedFields(new Set());
               setErrors({});
+              setFormError(null);
             }
           }}>
             <DialogTrigger asChild>
@@ -390,6 +394,16 @@ export const LeavePolicies: React.FC = () => {
                   {editingPolicy ? 'Update leave policy information based on experience range' : 'Create a new leave policy with experience-based allocation'}
                 </DialogDescription>
               </DialogHeader>
+              
+              {formError && (
+                <Alert variant="destructive" className="mb-4">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>
+                    {formError}
+                  </AlertDescription>
+                </Alert>
+              )}
+
               <div className="space-y-4 py-4">
                 {/* Leave Type */}
                 <div className="space-y-2">
@@ -556,7 +570,6 @@ export const LeavePolicies: React.FC = () => {
             </span>
             <div className="flex items-center space-x-2">
               <Button
-                variant="outline"
                 size="sm"
                 onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
                 disabled={currentPage === 1}
@@ -567,7 +580,6 @@ export const LeavePolicies: React.FC = () => {
                 Page {currentPage} of {totalPages || 1}
               </span>
               <Button
-                variant="outline"
                 size="sm"
                 onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
                 disabled={currentPage >= totalPages}
