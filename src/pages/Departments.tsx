@@ -27,6 +27,20 @@ export const Departments: React.FC = () => {
     const itemsPerPage = 5;
     const { toast } = useToast();
 
+    // Form state helpers: track if form is valid and if any changes were made (dirty)
+    const isValid = Boolean(formData.name && formData.companyId);
+    const isDirty = editingDept
+        ? (formData.name !== editingDept.name || (formData.companyId || '') !== (editingDept.companyId || ''))
+        : (formData.name !== '' || formData.companyId !== '');
+
+    // Reset form when dialog closes
+    useEffect(() => {
+        if (!isDialogOpen) {
+            setEditingDept(null);
+            setFormData({ name: '', companyId: '' });
+        }
+    }, [isDialogOpen]);
+
     // Fetch Companies
     const fetchCompanies = async () => {
         try {
@@ -154,10 +168,28 @@ export const Departments: React.FC = () => {
             // Refresh Data
             const comps = await fetchCompanies(); // Re-fetch companies in case new added (unlikely here but good practice)
             await fetchDepartments(comps);
-        } catch (error) {
+        } catch (error: any) {
+            console.error("Failed to save department", error);
+
+            let errorMessage = 'Failed to save department';
+            if (error.response && error.response.data) {
+                const responseData = error.response.data;
+
+                if (responseData.data && Array.isArray(responseData.data) && responseData.data.length > 0) {
+                    const firstError = responseData.data[0];
+                    if (firstError.message) {
+                        errorMessage = firstError.message;
+                    }
+                } else if (responseData.statusMessage) {
+                    errorMessage = responseData.statusMessage;
+                } else if (responseData.message) {
+                    errorMessage = responseData.message;
+                }
+            }
+
             toast({
                 title: 'Error',
-                description: 'Failed to save department',
+                description: errorMessage,
                 variant: 'destructive',
             });
         }
@@ -249,7 +281,10 @@ export const Departments: React.FC = () => {
                                 <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
                                     Cancel
                                 </Button>
-                                <Button onClick={handleSave}>
+                                <Button
+                                    onClick={handleSave}
+                                    disabled={!isValid || (editingDept ? !isDirty : false)}
+                                >
                                     {editingDept ? 'Update' : 'Create'}
                                 </Button>
                             </DialogFooter>
