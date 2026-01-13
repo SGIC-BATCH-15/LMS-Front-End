@@ -34,13 +34,15 @@ export const addCompany = async (companyData: CompanyDTO): Promise<CompanyRespon
  */
 export const getAllCompanies = async (): Promise<CompanyResponse[]> => {
   console.log('Fetching all companies from:', `${COMPANY_BASE_URL}`);
-  const response = await apiClient.get(COMPANY_BASE_URL);
+  const response = await apiClient.get(COMPANY_BASE_URL, {
+    params: { size: 1000 }
+  });
   console.log('Companies fetched successfully:', response.data);
-  
+
   // Backend returns paginated response with companies in data.content
   const companies = response.data?.data?.content || response.data?.content || response.data || [];
   console.log('Extracted companies array:', companies);
-  
+
   return companies;
 };
 
@@ -56,14 +58,14 @@ export const getCompanyById = async (id: string): Promise<CompanyResponse> => {
  * Update company
  */
 export const updateCompany = async (id: string, companyData: CompanyDTO): Promise<CompanyResponse> => {
-  // Don't send id in the body, it's in the URL
-  const { id: _, ...dataToSend } = companyData;
-  console.log('CompanyService - Updating company ID:', id, 'with data:', dataToSend);
-  const response = await apiClient.put(`${COMPANY_BASE_URL}/${id}`, dataToSend);
-  console.log('Company updated successfully:', response.data);
-  
-  // Handle paginated or wrapped response
-  return response.data?.data || response.data;
+  const response = await apiClient.put(`${COMPANY_BASE_URL}/${id}`, {
+    id: id,
+    name: companyData.name,
+    address: companyData.address,
+    email: companyData.email,
+    phoneNumber: companyData.phoneNumber,
+  });
+  return response.data;
 };
 
 /**
@@ -75,10 +77,27 @@ export const deleteCompany = async (id: string): Promise<void> => {
   console.log('Company deleted successfully');
 };
 
+/**
+ * Search companies by name
+ */
+export const searchCompanies = async (query: string): Promise<CompanyResponse[]> => {
+  console.log('Searching companies client-side with query:', query);
+  const allCompanies = await getAllCompanies();
+
+  if (!query) return allCompanies;
+
+  const lowerQuery = query.toLowerCase();
+  return allCompanies.filter(company =>
+    company.name.toLowerCase().includes(lowerQuery) ||
+    company.email.toLowerCase().includes(lowerQuery)
+  );
+};
+
 export const companyService = {
   addCompany,
   getAllCompanies,
   getCompanyById,
   updateCompany,
   deleteCompany,
+  searchCompanies,
 };
