@@ -25,8 +25,8 @@ import { Role } from "@/data/roles";
 import { roleService } from "@/components/services/roleService";
 
 export const Roles: React.FC = () => {
-
   const [roles1, setRoles1] = useState<Role[]>([]); // paginated roles from API
+  const [allRoles, setAllRoles] = useState<Role[]>([]); // all roles for global search
   const [searchTerm, setSearchTerm] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingRole, setEditingRole] = useState<Role | null>(null);
@@ -36,10 +36,35 @@ export const Roles: React.FC = () => {
   const [totalPages, setTotalPages] = useState(1);
   const [totalRoles, setTotalRoles] = useState(0);
 
-  // Filter roles based on search
-  const filteredRoles = roles1.filter((role) =>
-    role.name.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // Fetch all roles for global search
+  const fetchAllRoles = async () => {
+    try {
+      const roles = await roleService.getAllRoles();
+      if (Array.isArray(roles)) {
+        // place newest (highest id if numeric) first when possible
+        const sorted = [...roles].sort((a: any, b: any) => {
+          const ai = Number(a.id);
+          const bi = Number(b.id);
+          if (!Number.isNaN(ai) && !Number.isNaN(bi)) return bi - ai;
+          return 0;
+        });
+        setAllRoles(sorted);
+      }
+    } catch (error) {
+      console.error("Error fetching all roles:", error);
+    }
+  };
+
+  useEffect(() => {
+    fetchAllRoles();
+  }, []);
+
+  // Filter roles based on search. If searching show global results, otherwise show paginated page
+  const filteredRoles = searchTerm.trim()
+    ? allRoles.filter((role) =>
+        role.name.toLowerCase().includes(searchTerm.toLowerCase())
+      )
+    : roles1;
 
   // Fetch paginated roles whenever page or size changes
   useEffect(() => {
@@ -53,7 +78,7 @@ export const Roles: React.FC = () => {
       console.log("Full API Response:", res);
 
       // API structure: res is ResponseWrapper, res.data is RolePaginationDto
-      // detailed check: response.data in axios is the body. 
+      // detailed check: response.data in axios is the body.
       // roleService.getRoles returns response.data (Body).
       // Body is { statusCode, message, data: { roles, ... } }
       // So res.data is the pagination object.
@@ -106,20 +131,30 @@ export const Roles: React.FC = () => {
     try {
       if (editingRole) {
         // Update existing role
-        await roleService.updateRole(Number(editingRole.id), { name: formData.name });
+        await roleService.updateRole(Number(editingRole.id), {
+          name: formData.name,
+        });
         toast.success("Role updated successfully");
       } else {
         // Create new role
-        await roleService.createRole({ name: formData.name });
+        const created = await roleService.createRole({ name: formData.name });
         toast.success("Role added successfully");
+        // If API returned the created role, prepend to allRoles for immediate visibility
+        if (created) {
+          setAllRoles((prev) => [created, ...prev]);
+        }
       }
 
       handleCloseDialog();
-      // Refresh the roles list
-      await fetchRoles(page, size);
+      // Refresh global list and paginated view (show first page so new role is visible)
+      await fetchAllRoles();
+      setPage(1);
+      await fetchRoles(1, size);
     } catch (error: any) {
       console.error("Error saving role:", error);
-      const errorMessage = error.response?.data?.message || "Failed to save role. Please try again.";
+      const errorMessage =
+        error.response?.data?.message ||
+        "Failed to save role. Please try again.";
       toast.error(errorMessage);
     }
   };
@@ -132,11 +167,17 @@ export const Roles: React.FC = () => {
       try {
         await roleService.deleteRole(Number(role.id));
         toast.success("Role deleted successfully");
-        // Refresh the roles list
-        await fetchRoles(page, size);
+        // Refresh global and paginated lists
+        await fetchAllRoles();
+        // if current page might be empty after deletion, ensure page is valid
+        const nextPage = Math.max(1, Math.min(page, totalPages));
+        setPage(nextPage);
+        await fetchRoles(nextPage, size);
       } catch (error: any) {
         console.error("Error deleting role:", error);
-        const errorMessage = error.response?.data?.message || "Failed to delete role. Please try again.";
+        const errorMessage =
+          error.response?.data?.message ||
+          "Failed to delete role. Please try again.";
         toast.error(errorMessage);
       }
     }
