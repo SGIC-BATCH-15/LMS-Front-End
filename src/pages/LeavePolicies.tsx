@@ -4,7 +4,7 @@ import { LeaveTypeBadge } from '@/components/atoms/Badge/LeaveTypeBadge';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose, DialogDescription } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -22,7 +22,7 @@ import { getAllLeaveTypes, LeaveTypeResponseDto } from '@/components/services/le
 import { useToast } from "@/components/ui/use-toast";
 
 interface PolicyFormData {
-  leaveType: LeaveType;
+  leaveType: LeaveType | '';
   minExperience: number;
   maxExperience: number;
   daysAllowed: number;
@@ -31,9 +31,9 @@ interface PolicyFormData {
 }
 
 const initialFormData: PolicyFormData = {
-  leaveType: 'annual',
+  leaveType: '',
   minExperience: 0,
-  maxExperience: 100,
+  maxExperience: 1, // Defaulting to 1 year instead of 100
   daysAllowed: 10,
   carryForward: false,
   maxCarryForward: 0,
@@ -45,22 +45,29 @@ export const LeavePolicies: React.FC = () => {
   const [filterType, setFilterType] = useState('all');
   const [policies, setPolicies] = useState<LeavePolicy[]>([]);
   const [formData, setFormData] = useState<PolicyFormData>(initialFormData);
+  const [errors, setErrors] = useState<Record<string, string>>({});
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingPolicy, setEditingPolicy] = useState<LeavePolicy | null>(null);
   const [leaveTypes, setLeaveTypes] = useState<LeaveTypeResponseDto[]>([]);
+  
+  // Delete confirmation dialog state
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [policyToDelete, setPolicyToDelete] = useState<string | null>(null);
+  
+  // Track original form data for update button state
+  const [originalFormData, setOriginalFormData] = useState<PolicyFormData>(initialFormData);
+  const [modifiedFields, setModifiedFields] = useState<Set<string>>(new Set());
 
-  // Pagination State
-  const [page, setPage] = useState(0);
-  const [totalPages, setTotalPages] = useState(0);
-  const [totalPolicies, setTotalPolicies] = useState(0);
-  const pageSize = 5;
+  // Client-Side Pagination State
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 5;
 
   const { toast } = useToast();
 
   useEffect(() => {
     fetchPolicies();
     fetchLeaveTypes();
-  }, [page]);
+  }, []);
 
   const fetchLeaveTypes = async () => {
     try {
@@ -75,8 +82,8 @@ export const LeavePolicies: React.FC = () => {
 
   const fetchPolicies = async () => {
     try {
-      // Logic for filtering is now handled in the service layer using strict verification
-      const response = await getAllLeavePolicies(page, pageSize);
+      // Fetch ALL policies for client-side pagination (size=1000)
+      const response = await getAllLeavePolicies(0, 1000);
       if (response.data && response.data.content) {
         const mappedPolicies: LeavePolicy[] = response.data.content.map((p) => ({
           id: p.id.toString(),
@@ -87,9 +94,12 @@ export const LeavePolicies: React.FC = () => {
           carryForward: p.carryForwardAllowed,
           maxCarryForward: p.maxCarryForwardDays || 0,
         }));
+        
+        // Sort policies in descending order by ID (newest first - LIFO)
+        mappedPolicies.sort((a, b) => parseInt(b.id) - parseInt(a.id));
+        
         setPolicies(mappedPolicies);
-        setTotalPages(response.data.totalPages);
-        setTotalPolicies(response.data.totalElements || response.data.content.length);
+        // Note: totalPages will be calculated derived from filtered list length
       }
     } catch (error) {
       console.error("Failed to fetch policies", error);
@@ -106,11 +116,46 @@ export const LeavePolicies: React.FC = () => {
     return matchesType;
   });
 
+  // Client-Side Pagination Logic
+  const totalPages = Math.max(1, Math.ceil(filteredPolicies.length / itemsPerPage));
+  const currentPolicies = filteredPolicies.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
+
+  // Reset page on filter change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filterType]);
+
   const handleInputChange = (field: keyof PolicyFormData, value: string | number | boolean) => {
     setFormData(prev => ({
       ...prev,
       [field]: value,
     }));
+    
+    // Track modified fields when in edit mode
+    if (editingPolicy) {
+      const isModified = originalFormData[field] !== value;
+      setModifiedFields(prev => {
+        const newSet = new Set(prev);
+        if (isModified) {
+          newSet.add(field);
+        } else {
+          newSet.delete(field);
+        }
+        return newSet;
+      });
+    }
+    
+    // Clear error for the field being edited
+    if (errors[field]) {
+      setErrors(prev => {
+        const newErrors = { ...prev };
+        delete newErrors[field];
+        return newErrors;
+      });
+    }
   };
 
   const getLeaveTypeIdByName = (name: string): number | undefined => {
@@ -119,7 +164,54 @@ export const LeavePolicies: React.FC = () => {
     return found?.id;
   };
 
+  const validateForm = (): boolean => {
+    const newErrors: Record<string, string> = {};
+    let isValid = true;
+
+    if (!formData.leaveType) {
+      newErrors.leaveType = "Leave Type is required";
+      isValid = false;
+    }
+
+    if (formData.minExperience < 0) {
+      newErrors.minExperience = "Min experience cannot be negative";
+      isValid = false;
+    }
+
+    if (formData.maxExperience <= 0) {
+      newErrors.maxExperience = "Max experience must be greater than 0";
+      isValid = false;
+    }
+
+    if (formData.maxExperience > 50) {
+      newErrors.maxExperience = "Max experience cannot exceed 50 years";
+      isValid = false;
+    }
+
+    if (formData.minExperience >= formData.maxExperience) {
+      newErrors.minExperience = "Min experience must be less than max experience";
+      isValid = false;
+    }
+
+    if (formData.daysAllowed <= 0) {
+      newErrors.daysAllowed = "Days allowed must be greater than 0";
+      isValid = false;
+    }
+
+    if (formData.carryForward && formData.maxCarryForward < 0) {
+      newErrors.maxCarryForward = "Max carry forward cannot be negative";
+      isValid = false;
+    }
+
+    setErrors(newErrors);
+    return isValid;
+  };
+
   const handleSubmit = async () => {
+    if (!validateForm()) {
+      return;
+    }
+
     const leaveTypeId = getLeaveTypeIdByName(formData.leaveType);
     if (!leaveTypeId) {
       toast({
@@ -152,9 +244,13 @@ export const LeavePolicies: React.FC = () => {
           title: "Success",
           description: "Policy added successfully",
         });
+        // Navigate to first page to see the new policy at the top
+        setCurrentPage(1);
       }
       fetchPolicies();
       setFormData(initialFormData);
+      setOriginalFormData(initialFormData);
+      setModifiedFields(new Set());
       setIsDialogOpen(false);
       setEditingPolicy(null);
     } catch (error) {
@@ -169,31 +265,44 @@ export const LeavePolicies: React.FC = () => {
 
   const handleEditPolicy = (policy: LeavePolicy) => {
     setEditingPolicy(policy);
-    setFormData({
+    const policyFormData = {
       leaveType: policy.leaveType,
       minExperience: policy.minExperience,
       maxExperience: policy.maxExperience,
       daysAllowed: policy.daysAllowed,
       carryForward: policy.carryForward,
       maxCarryForward: policy.maxCarryForward,
-    });
+    };
+    setFormData(policyFormData);
+    setOriginalFormData(policyFormData);
+    setModifiedFields(new Set());
+    setErrors({});
     setIsDialogOpen(true);
   };
 
   const handleOpenDialog = () => {
     setEditingPolicy(null);
     setFormData(initialFormData);
+    setOriginalFormData(initialFormData);
+    setModifiedFields(new Set());
+    setErrors({});
     setIsDialogOpen(true);
   };
 
-  const handleDeletePolicy = async (policyId: string) => {
-    if (!window.confirm("Are you sure you want to delete this leave policy?")) return;
+  const handleDeletePolicy = (policyId: string) => {
+    setPolicyToDelete(policyId);
+    setDeleteConfirmOpen(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!policyToDelete) return;
+    
     try {
       // Call the delete API
-      await deleteLeavePolicy(parseInt(policyId));
+      await deleteLeavePolicy(parseInt(policyToDelete));
 
       // Immediately remove from the current view without refetching
-      setPolicies(prev => prev.filter(p => p.id !== policyId));
+      setPolicies(prev => prev.filter(p => p.id !== policyToDelete));
 
       // Show success message
       toast({
@@ -207,6 +316,9 @@ export const LeavePolicies: React.FC = () => {
         title: "Error",
         description: "Failed to delete policy",
       });
+    } finally {
+      setDeleteConfirmOpen(false);
+      setPolicyToDelete(null);
     }
   };
 
@@ -233,6 +345,9 @@ export const LeavePolicies: React.FC = () => {
             if (!open) {
               setEditingPolicy(null);
               setFormData(initialFormData);
+              setOriginalFormData(initialFormData);
+              setModifiedFields(new Set());
+              setErrors({});
             }
           }}>
             <DialogTrigger asChild>
@@ -244,6 +359,9 @@ export const LeavePolicies: React.FC = () => {
             <DialogContent className="sm:max-w-[500px]">
               <DialogHeader>
                 <DialogTitle>{editingPolicy ? 'Edit Leave Policy' : 'Add New Leave Policy'}</DialogTitle>
+                <DialogDescription>
+                  {editingPolicy ? 'Update leave policy information based on experience range' : 'Create a new leave policy with experience-based allocation'}
+                </DialogDescription>
               </DialogHeader>
               <div className="space-y-4 py-4">
                 {/* Leave Type */}
@@ -262,6 +380,7 @@ export const LeavePolicies: React.FC = () => {
                       ))}
                     </SelectContent>
                   </Select>
+                  {errors.leaveType && <span className="text-destructive text-xs">{errors.leaveType}</span>}
                 </div>
 
                 {/* Experience Range */}
@@ -274,7 +393,9 @@ export const LeavePolicies: React.FC = () => {
                       min={0}
                       value={formData.minExperience}
                       onChange={(e) => handleInputChange('minExperience', parseInt(e.target.value) || 0)}
+                      className={modifiedFields.has('minExperience') ? 'font-semibold' : ''}
                     />
+                    {errors.minExperience && <span className="text-destructive text-xs">{errors.minExperience}</span>}
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="maxExperience">Max Experience (years)</Label>
@@ -282,10 +403,12 @@ export const LeavePolicies: React.FC = () => {
                       id="maxExperience"
                       type="number"
                       min={0}
+                      max={50}
                       value={formData.maxExperience}
                       onChange={(e) => handleInputChange('maxExperience', parseInt(e.target.value) || 0)}
+                      className={modifiedFields.has('maxExperience') ? 'font-semibold' : ''}
                     />
-                    <p className="text-[10px] text-muted-foreground">Use 100 for "or more"</p>
+                    {errors.maxExperience && <span className="text-destructive text-xs">{errors.maxExperience}</span>}
                   </div>
                 </div>
 
@@ -298,7 +421,9 @@ export const LeavePolicies: React.FC = () => {
                     min={1}
                     value={formData.daysAllowed}
                     onChange={(e) => handleInputChange('daysAllowed', parseInt(e.target.value) || 1)}
+                    className={modifiedFields.has('daysAllowed') ? 'font-semibold' : ''}
                   />
+                  {errors.daysAllowed && <span className="text-destructive text-xs">{errors.daysAllowed}</span>}
                 </div>
 
                 {/* Carry Forward */}
@@ -321,7 +446,9 @@ export const LeavePolicies: React.FC = () => {
                       min={0}
                       value={formData.maxCarryForward}
                       onChange={(e) => handleInputChange('maxCarryForward', parseInt(e.target.value) || 0)}
+                      className={modifiedFields.has('maxCarryForward') ? 'font-semibold' : ''}
                     />
+                    {errors.maxCarryForward && <span className="text-destructive text-xs">{errors.maxCarryForward}</span>}
                   </div>
                 )}
               </div>
@@ -329,7 +456,12 @@ export const LeavePolicies: React.FC = () => {
                 <DialogClose asChild>
                   <Button variant="outline">Cancel</Button>
                 </DialogClose>
-                <Button onClick={handleSubmit}>{editingPolicy ? 'Update Policy' : 'Add Policy'}</Button>
+                <Button 
+                  onClick={handleSubmit}
+                  disabled={editingPolicy ? modifiedFields.size === 0 : false}
+                >
+                  {editingPolicy ? 'Update Policy' : 'Add Policy'}
+                </Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>
@@ -349,7 +481,7 @@ export const LeavePolicies: React.FC = () => {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredPolicies.map(policy => (
+              {currentPolicies.map(policy => (
                 <TableRow key={policy.id}>
                   <TableCell>
                     {KNOWN_LEAVE_TYPES.includes(policy.leaveType) ? (
@@ -360,7 +492,7 @@ export const LeavePolicies: React.FC = () => {
                   </TableCell>
                   {/* Role cell removed */}
                   <TableCell>
-                    {policy.minExperience}y - {policy.maxExperience >= 100 ? '100+ years' : `${policy.maxExperience}y`}
+                    {policy.minExperience}y - {policy.maxExperience}y
                   </TableCell>
                   <TableCell>
                     <span className="font-semibold text-foreground">{policy.daysAllowed} days</span>
@@ -393,31 +525,56 @@ export const LeavePolicies: React.FC = () => {
           {/* Pagination Controls */}
           <div className="flex items-center justify-between p-4">
             <span className="text-sm text-muted-foreground">
-              Total Leave Policies: {totalPolicies}
+              Total Leave Policies: {filteredPolicies.length}
             </span>
             <div className="flex items-center space-x-2">
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => setPage(p => Math.max(0, p - 1))}
-                disabled={page === 0}
+                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
               >
                 Previous
               </Button>
               <span className="text-sm text-muted-foreground">
-                Page {page + 1} of {totalPages || 1}
+                Page {currentPage} of {totalPages || 1}
               </span>
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))}
-                disabled={page >= totalPages - 1} // Limit to calculated pages
+                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                disabled={currentPage >= totalPages}
               >
                 Next
               </Button>
             </div>
           </div>
         </div>
+
+        {/* Delete Confirmation Dialog */}
+        <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+          <DialogContent className="sm:max-w-[425px]">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-destructive">
+                <Trash2 className="w-5 h-5" />
+                Confirm Deletion
+              </DialogTitle>
+            </DialogHeader>
+            <div className="py-4">
+              <p className="text-muted-foreground">
+                Are you sure you want to delete this leave policy? This action cannot be undone.
+              </p>
+            </div>
+            <DialogFooter>
+              <DialogClose asChild>
+                <Button variant="outline">Cancel</Button>
+              </DialogClose>
+              <Button variant="destructive" onClick={confirmDelete}>
+                Delete Policy
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </DashboardLayout>
   );
