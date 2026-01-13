@@ -212,6 +212,33 @@ export const LeavePolicies: React.FC = () => {
       return;
     }
 
+    // Check for duplicate policy
+    // Check for overlapping experience ranges for the same leave type
+    const isOverlapping = policies.some(policy => {
+        // Skip current policy if editing
+        if (editingPolicy && policy.id === editingPolicy.id) return false;
+
+        // Only check overlapping for the same Leave Type
+        if (policy.leaveType.toLowerCase() !== formData.leaveType.toLowerCase()) return false;
+
+        // Check if ranges overlap: (StartA < EndB) && (EndA > StartB)
+        // Using < and >= to handle contiguous ranges correctly if needed, but typically overlap is strict
+        // User scenario: If 0-3 exists, don't allow 0-1 or 0-2 (which are subsets)
+        // This simple intersection logic covers subsets, supersets, and partial overlaps
+        const isOverlap = (formData.minExperience < policy.maxExperience) && (formData.maxExperience > policy.minExperience);
+        
+        return isOverlap;
+    });
+
+    if (isOverlapping) {
+        toast({
+            variant: "destructive",
+            title: "Error",
+            description: "Experience range overlaps with an existing policy for this Leave Type.",
+        });
+        return;
+    }
+
     const leaveTypeId = getLeaveTypeIdByName(formData.leaveType);
     if (!leaveTypeId) {
       toast({
