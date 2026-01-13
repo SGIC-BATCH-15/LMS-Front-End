@@ -154,10 +154,28 @@ export const Departments: React.FC = () => {
             // Refresh Data
             const comps = await fetchCompanies(); // Re-fetch companies in case new added (unlikely here but good practice)
             await fetchDepartments(comps);
-        } catch (error) {
+        } catch (error: any) {
+            console.error("Failed to save department", error);
+
+            let errorMessage = 'Failed to save department';
+            if (error.response && error.response.data) {
+                const responseData = error.response.data;
+
+                if (responseData.data && Array.isArray(responseData.data) && responseData.data.length > 0) {
+                    const firstError = responseData.data[0];
+                    if (firstError.message) {
+                        errorMessage = firstError.message;
+                    }
+                } else if (responseData.statusMessage) {
+                    errorMessage = responseData.statusMessage;
+                } else if (responseData.message) {
+                    errorMessage = responseData.message;
+                }
+            }
+
             toast({
                 title: 'Error',
-                description: 'Failed to save department',
+                description: errorMessage,
                 variant: 'destructive',
             });
         }
