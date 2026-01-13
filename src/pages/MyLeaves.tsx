@@ -131,40 +131,90 @@ export const MyLeaves: React.FC = () => {
   }, []);
 
   // Convert backend data to frontend format WITH FULL REASON (for context/detail page)
-  const convertedRequestsWithFullReason: LeaveRequest[] = backendLeaveRequests.map(req => ({
-    id: req.id.toString(),
-    employeeId: req.employee.id.toString(),
-    employeeName: `${req.employee.firstName} ${req.employee.lastName}`,
-    leaveType: req.leaveType.leaveType.toLowerCase().includes('annual') ? 'annual' :
-      req.leaveType.leaveType.toLowerCase().includes('sick') ? 'sick' :
-        req.leaveType.leaveType.toLowerCase().includes('casual') ? 'casual' :
-          req.leaveType.leaveType.toLowerCase().includes('maternity') ? 'maternity' :
-            req.leaveType.leaveType.toLowerCase().includes('paternity') ? 'paternity' : 'unpaid',
-    startDate: req.startDate,
-    endDate: req.endDate,
-    days: req.halfDay ? 0.5 : req.leaveDuration,
-    reason: req.reason, // Full reason for detail page
-    status: req.status.toLowerCase() as 'pending' | 'approved' | 'rejected' | 'cancelled',
-    toRecipients: [req.toEmail.id.toString()],
-    ccRecipients: req.ccEmails.map(cc => cc.id.toString()),
-    approvalSteps: [{
-      id: `step-${req.id}`,
+  const convertedRequestsWithFullReason: LeaveRequest[] = backendLeaveRequests.map(req => {
+    // Build approval steps from backend data
+    const approvalSteps = [];
+    
+    // Determine status for TO recipient
+    let toStatus: 'pending' | 'approved' | 'rejected' = 'pending';
+    if (req.status.toLowerCase() === 'approved') {
+      if (req.approvedBy) {
+        toStatus = req.approvedBy.id === req.toEmail.id ? 'approved' : 'pending';
+      } else {
+        toStatus = 'approved'; // Fallback
+      }
+    } else if (req.status.toLowerCase() === 'rejected') {
+      if (req.rejectedBy) {
+        toStatus = req.rejectedBy.id === req.toEmail.id ? 'rejected' : 'pending';
+      } else {
+        toStatus = 'rejected'; // Fallback
+      }
+    }
+    
+    // Add TO recipient as primary approver
+    const toStep = {
+      id: `step-${req.id}-to`,
       approverId: req.toEmail.id.toString(),
       approverName: `${req.toEmail.firstName} ${req.toEmail.lastName}`,
-      approverRole: 'Approver',
-      status: req.status.toLowerCase() === 'approved' ? 'approved' as const :
-        req.status.toLowerCase() === 'rejected' ? 'rejected' as const : 'pending' as const,
+      approverRole: 'Primary Approver',
+      status: toStatus,
+      actionDate: toStatus === 'approved' ? req.approvedAt :
+                  toStatus === 'rejected' ? req.rejectedAt : undefined,
+      comment: req.comments,
       order: 1,
-    }],
-    currentStep: 1,
-    createdAt: req.createdAt,
-    updatedAt: req.updatedAt,
-    permissions: {
-      canApprove: false,
-      canReject: false,
-      canCancel: req.status.toLowerCase() === 'pending',
-    },
-  }));
+    };
+    approvalSteps.push(toStep);
+    
+    // Add CC recipients as secondary approvers/reviewers
+    req.ccEmails.forEach((cc, index) => {
+      let ccStatus: 'pending' | 'approved' | 'rejected' = 'pending';
+      if (req.status.toLowerCase() === 'approved' && req.approvedBy?.id === cc.id) {
+        ccStatus = 'approved';
+      } else if (req.status.toLowerCase() === 'rejected' && req.rejectedBy?.id === cc.id) {
+        ccStatus = 'rejected';
+      }
+      
+      const ccStep = {
+        id: `step-${req.id}-cc-${cc.id}`,
+        approverId: cc.id.toString(),
+        approverName: `${cc.firstName} ${cc.lastName}`,
+        approverRole: 'Reviewer (CC)',
+        status: ccStatus,
+        actionDate: ccStatus === 'approved' ? req.approvedAt :
+                    ccStatus === 'rejected' ? req.rejectedAt : undefined,
+        comment: req.comments,
+        order: index + 2,
+      };
+      approvalSteps.push(ccStep);
+    });
+
+    return {
+      id: req.id.toString(),
+      employeeId: req.employee.id.toString(),
+      employeeName: `${req.employee.firstName} ${req.employee.lastName}`,
+      leaveType: req.leaveType.leaveType.toLowerCase().includes('annual') ? 'annual' :
+        req.leaveType.leaveType.toLowerCase().includes('sick') ? 'sick' :
+          req.leaveType.leaveType.toLowerCase().includes('casual') ? 'casual' :
+            req.leaveType.leaveType.toLowerCase().includes('maternity') ? 'maternity' :
+              req.leaveType.leaveType.toLowerCase().includes('paternity') ? 'paternity' : 'unpaid',
+      startDate: req.startDate,
+      endDate: req.endDate,
+      days: req.halfDay ? 0.5 : req.leaveDuration,
+      reason: req.reason, // Full reason for detail page
+      status: req.status.toLowerCase() as 'pending' | 'approved' | 'rejected' | 'cancelled',
+      toRecipients: [req.toEmail.id.toString()],
+      ccRecipients: req.ccEmails.map(cc => cc.id.toString()),
+      approvalSteps: approvalSteps,
+      currentStep: 1,
+      createdAt: req.createdAt,
+      updatedAt: req.updatedAt,
+      permissions: {
+        canApprove: false,
+        canReject: false,
+        canCancel: req.status.toLowerCase() === 'pending',
+      },
+    };
+  });
 
   // Sync converted requests (with full reason) to context so detail page can find them
   useEffect(() => {
@@ -185,50 +235,100 @@ export const MyLeaves: React.FC = () => {
   }, [backendLeaveRequests, leaveRequests, addLeaveRequest, updateLeaveRequest]);
 
   // Convert backend data to frontend format WITH TRUNCATED REASON (for display)
-  const convertedRequests: LeaveRequest[] = backendLeaveRequests.map(req => ({
-    id: req.id.toString(),
-    employeeId: req.employee.id.toString(),
-    employeeName: `${req.employee.firstName} ${req.employee.lastName}`,
-    leaveType: req.leaveType.leaveType.toLowerCase().includes('annual') ? 'annual' :
-      req.leaveType.leaveType.toLowerCase().includes('sick') ? 'sick' :
-        req.leaveType.leaveType.toLowerCase().includes('casual') ? 'casual' :
-          req.leaveType.leaveType.toLowerCase().includes('maternity') ? 'maternity' :
-            req.leaveType.leaveType.toLowerCase().includes('paternity') ? 'paternity' : 'unpaid',
-    startDate: req.startDate,
-    endDate: req.endDate,
-    days: req.halfDay ? 0.5 : req.leaveDuration,
-    reason: (() => {
-      const trimmedReason = req.reason.trim();
-
-      // Truncate if more than 35 characters - show first 30 chars
-      // Don't add '...' here as we'll add it inline with Read More
-      if (trimmedReason.length > 35) {
-        return trimmedReason.substring(0, 30);
+  const convertedRequests: LeaveRequest[] = backendLeaveRequests.map(req => {
+    // Build approval steps from backend data
+    const approvalSteps = [];
+    
+    // Determine status for TO recipient
+    let toStatus: 'pending' | 'approved' | 'rejected' = 'pending';
+    if (req.status.toLowerCase() === 'approved') {
+      if (req.approvedBy) {
+        toStatus = req.approvedBy.id === req.toEmail.id ? 'approved' : 'pending';
+      } else {
+        toStatus = 'approved'; // Fallback
       }
-
-      return req.reason;
-    })(),
-    status: req.status.toLowerCase() as 'pending' | 'approved' | 'rejected' | 'cancelled',
-    toRecipients: [req.toEmail.id.toString()],
-    ccRecipients: req.ccEmails.map(cc => cc.id.toString()),
-    approvalSteps: [{
-      id: `step-${req.id}`,
+    } else if (req.status.toLowerCase() === 'rejected') {
+      if (req.rejectedBy) {
+        toStatus = req.rejectedBy.id === req.toEmail.id ? 'rejected' : 'pending';
+      } else {
+        toStatus = 'rejected'; // Fallback
+      }
+    }
+    
+    // Add TO recipient as primary approver
+    const toStep = {
+      id: `step-${req.id}-to`,
       approverId: req.toEmail.id.toString(),
       approverName: `${req.toEmail.firstName} ${req.toEmail.lastName}`,
-      approverRole: 'Approver',
-      status: req.status.toLowerCase() === 'approved' ? 'approved' as const :
-        req.status.toLowerCase() === 'rejected' ? 'rejected' as const : 'pending' as const,
+      approverRole: 'Primary Approver',
+      status: toStatus,
+      actionDate: toStatus === 'approved' ? req.approvedAt :
+                  toStatus === 'rejected' ? req.rejectedAt : undefined,
+      comment: req.comments,
       order: 1,
-    }],
-    currentStep: 1,
-    createdAt: req.createdAt,
-    updatedAt: req.updatedAt,
-    permissions: {
-      canApprove: false,
-      canReject: false,
-      canCancel: req.status.toLowerCase() === 'pending',
-    },
-  }));
+    };
+    approvalSteps.push(toStep);
+    
+    // Add CC recipients as secondary approvers/reviewers
+    req.ccEmails.forEach((cc, index) => {
+      let ccStatus: 'pending' | 'approved' | 'rejected' = 'pending';
+      if (req.status.toLowerCase() === 'approved' && req.approvedBy?.id === cc.id) {
+        ccStatus = 'approved';
+      } else if (req.status.toLowerCase() === 'rejected' && req.rejectedBy?.id === cc.id) {
+        ccStatus = 'rejected';
+      }
+      
+      const ccStep = {
+        id: `step-${req.id}-cc-${cc.id}`,
+        approverId: cc.id.toString(),
+        approverName: `${cc.firstName} ${cc.lastName}`,
+        approverRole: 'Reviewer (CC)',
+        status: ccStatus,
+        actionDate: ccStatus === 'approved' ? req.approvedAt :
+                    ccStatus === 'rejected' ? req.rejectedAt : undefined,
+        comment: req.comments,
+        order: index + 2,
+      };
+      approvalSteps.push(ccStep);
+    });
+
+    return {
+      id: req.id.toString(),
+      employeeId: req.employee.id.toString(),
+      employeeName: `${req.employee.firstName} ${req.employee.lastName}`,
+      leaveType: req.leaveType.leaveType.toLowerCase().includes('annual') ? 'annual' :
+        req.leaveType.leaveType.toLowerCase().includes('sick') ? 'sick' :
+          req.leaveType.leaveType.toLowerCase().includes('casual') ? 'casual' :
+            req.leaveType.leaveType.toLowerCase().includes('maternity') ? 'maternity' :
+              req.leaveType.leaveType.toLowerCase().includes('paternity') ? 'paternity' : 'unpaid',
+      startDate: req.startDate,
+      endDate: req.endDate,
+      days: req.halfDay ? 0.5 : req.leaveDuration,
+      reason: (() => {
+        const trimmedReason = req.reason.trim();
+
+        // Truncate if more than 35 characters - show first 30 chars
+        // Don't add '...' here as we'll add it inline with Read More
+        if (trimmedReason.length > 35) {
+          return trimmedReason.substring(0, 30);
+        }
+
+        return req.reason;
+      })(),
+      status: req.status.toLowerCase() as 'pending' | 'approved' | 'rejected' | 'cancelled',
+      toRecipients: [req.toEmail.id.toString()],
+      ccRecipients: req.ccEmails.map(cc => cc.id.toString()),
+      approvalSteps: approvalSteps,
+      currentStep: 1,
+      createdAt: req.createdAt,
+      updatedAt: req.updatedAt,
+      permissions: {
+        canApprove: false,
+        canReject: false,
+        canCancel: req.status.toLowerCase() === 'pending',
+      },
+    };
+  });
 
   console.log('Current User ID:', currentUser?.id);
   console.log('Current User Email:', currentUser?.email);
