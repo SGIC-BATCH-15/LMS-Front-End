@@ -73,6 +73,11 @@ export interface LeaveRequestItem {
   ccEmails: Employee[];
   createdAt: string;
   updatedAt: string;
+  approvedBy?: Employee;
+  approvedAt?: string;
+  rejectedBy?: Employee;
+  rejectedAt?: string;
+  comments?: string;
 }
 
 // Response for fetching all leave requests
@@ -457,7 +462,12 @@ export const EditLeaveForm: React.FC<EditLeaveFormProps> = ({ initialData, origi
   const [searchCc, setSearchCc] = useState('');
   // Check if it's a half day (0.5 days)
   const [isHalfDay, setIsHalfDay] = useState(initialData ? initialData.days === 0.5 : false);
-  const [halfDayType, setHalfDayType] = useState<'morning' | 'afternoon'>('morning');
+  const [halfDayType, setHalfDayType] = useState<'morning' | 'afternoon'>(() => {
+    if (originalBackendData?.halfDayType) {
+      return originalBackendData.halfDayType.toLowerCase() === 'afternoon' ? 'afternoon' : 'morning';
+    }
+    return 'morning';
+  });
 
   // Fetch leave types, TO recipients, and CC recipients from backend
   useEffect(() => {
@@ -617,7 +627,10 @@ export const EditLeaveForm: React.FC<EditLeaveFormProps> = ({ initialData, origi
       }
 
       if (response.statusCode === 2001 || response.statusCode === 200) {
-        toast.success(response.statusMessage || 'Leave request submitted successfully!');
+        const successMessage = initialData 
+          ? (response.statusMessage || 'Leave request updated successfully!')
+          : (response.statusMessage || 'Leave request submitted successfully!');
+        toast.success(successMessage);
 
         // Update local context
         if (initialData) {
