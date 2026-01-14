@@ -170,7 +170,13 @@ export const EmailConfiguration: React.FC = () => {
             return;
         }
 
-        // Validate CC email if enabled
+        // Validate CC email presence if enabled
+        if (enableCC && (!formData.ccMailAddress || !formData.ccMailAddress.trim())) {
+            setCcEmailError('Please enter  CC email address.');
+            return;
+        }
+
+        // Validate CC email format if provided
         if (enableCC && formData.ccMailAddress && !emailRegex.test(formData.ccMailAddress)) {
             setCcEmailError('Please enter a valid CC email address (e.g., cc@example.com)');
             return;
@@ -439,7 +445,15 @@ export const EmailConfiguration: React.FC = () => {
                                         <Checkbox
                                             id="enableCC"
                                             checked={enableCC}
-                                            onCheckedChange={(checked) => setEnableCC(checked as boolean)}
+                                            onCheckedChange={(checked) => {
+                                                const isChecked = checked as boolean;
+                                                setEnableCC(isChecked);
+                                                if (isChecked && (!formData.ccMailAddress || !formData.ccMailAddress.trim())) {
+                                                    setCcEmailError('Please enter  CC email address.');
+                                                } else {
+                                                    setCcEmailError('');
+                                                }
+                                            }}
                                         />
                                         <Label htmlFor="enableCC" className="text-sm font-normal cursor-pointer">
                                             Enable CC (Carbon Copy) - Optional
