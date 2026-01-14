@@ -27,6 +27,24 @@ export const Departments: React.FC = () => {
     const itemsPerPage = 5;
     const { toast } = useToast();
 
+    // Form state helpers: track if form is valid and if any changes were made (dirty)
+    const isValid = Boolean(formData.name && formData.companyId);
+    const isDirty = editingDept
+        ? (formData.name !== editingDept.name || (formData.companyId || '') !== (editingDept.companyId || ''))
+        : (formData.name !== '' || formData.companyId !== '');
+
+    // Reset form when dialog closes
+    useEffect(() => {
+        if (!isDialogOpen) {
+            setEditingDept(null);
+            setFormData({ name: '', companyId: '' });
+        }
+    }, [isDialogOpen]);
+
+    // Deletion confirmation dialog state
+    const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+    const [deptToDelete, setDeptToDelete] = useState<{ id: string; name?: string } | null>(null);
+
     // Fetch Companies
     const fetchCompanies = async () => {
         try {
@@ -154,33 +172,59 @@ export const Departments: React.FC = () => {
             // Refresh Data
             const comps = await fetchCompanies(); // Re-fetch companies in case new added (unlikely here but good practice)
             await fetchDepartments(comps);
-        } catch (error) {
+        } catch (error: any) {
+            console.error("Failed to save department", error);
+
+            let errorMessage = 'Failed to save department';
+            if (error.response && error.response.data) {
+                const responseData = error.response.data;
+
+                if (responseData.data && Array.isArray(responseData.data) && responseData.data.length > 0) {
+                    const firstError = responseData.data[0];
+                    if (firstError.message) {
+                        errorMessage = firstError.message;
+                    }
+                } else if (responseData.statusMessage) {
+                    errorMessage = responseData.statusMessage;
+                } else if (responseData.message) {
+                    errorMessage = responseData.message;
+                }
+            }
+
             toast({
                 title: 'Error',
-                description: 'Failed to save department',
+                description: errorMessage,
                 variant: 'destructive',
             });
         }
     };
 
-    const handleDelete = async (id: string) => {
-        if (window.confirm('Are you sure you want to delete this department? This action cannot be undone.')) {
-            try {
-                await departmentService.deleteDepartment(id);
-                toast({
-                    title: 'Success',
-                    description: 'Department deleted successfully',
-                });
-                // Refresh
-                const comps = companies.length > 0 ? companies : await fetchCompanies();
-                await fetchDepartments(comps);
-            } catch (error) {
-                toast({
-                    title: 'Error',
-                    description: 'Failed to delete department. Please try again.',
-                    variant: 'destructive',
-                });
-            }
+    // Open the confirmation dialog for a given department
+    const requestDelete = (id: string, name?: string) => {
+        setDeptToDelete({ id, name });
+        setIsDeleteDialogOpen(true);
+    };
+
+    // Called when the user confirms deletion
+    const confirmDelete = async () => {
+        if (!deptToDelete) return;
+        try {
+            await departmentService.deleteDepartment(deptToDelete.id);
+            toast({
+                title: 'Success',
+                description: 'Department deleted successfully',
+            });
+            setIsDeleteDialogOpen(false);
+            setDeptToDelete(null);
+            // Refresh
+            const comps = companies.length > 0 ? companies : await fetchCompanies();
+            await fetchDepartments(comps);
+        } catch (error) {
+            toast({
+                title: 'Error',
+                description: 'Failed to delete department. Please try again.',
+                variant: 'destructive',
+            });
         }
     };
 
@@ -249,8 +293,31 @@ export const Departments: React.FC = () => {
                                 <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
                                     Cancel
                                 </Button>
-                                <Button onClick={handleSave}>
+                                <Button
+                                    onClick={handleSave}
+                                    disabled={!isValid || (editingDept ? !isDirty : false)}
+                                >
                                     {editingDept ? 'Update' : 'Create'}
+                                </Button>
+                            </DialogFooter>
+                        </DialogContent>
+                    </Dialog>
+
+                    {/* Deletion confirmation dialog */}
+                    <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+                        <DialogContent>
+                            <DialogHeader>
+                                <DialogTitle>Confirm Department Deletion</DialogTitle>
+                                <DialogDescription>
+                                    Are you sure you want to permanently delete this department? This action cannot be undone. Please confirm to proceed, or click Cancel to keep it.
+                                </DialogDescription>
+                            </DialogHeader>
+                            <DialogFooter>
+                                <Button variant="outline" onClick={() => { setIsDeleteDialogOpen(false); setDeptToDelete(null); }}>
+                                    Cancel
+                                </Button>
+                                <Button onClick={confirmDelete} className="bg-red-600 hover:bg-red-700">
+                                    Confirm
                                 </Button>
                             </DialogFooter>
                         </DialogContent>
@@ -293,7 +360,7 @@ export const Departments: React.FC = () => {
                                                 <Button
                                                     variant="ghost"
                                                     size="icon"
-                                                    onClick={() => handleDelete(dept.id)}
+                                                    onClick={() => requestDelete(dept.id, dept.name)}
                                                 >
                                                     <Trash2 className="w-4 h-4 text-red-600" />
                                                 </Button>
@@ -314,17 +381,15 @@ export const Departments: React.FC = () => {
                         </span>
                         <div className="flex gap-2">
                             <Button
-                                variant="outline"
                                 onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
                                 disabled={currentPage === 1}
                             >
                                 Previous
-                            </Button>
+                            </Button> 
                             <span className="px-2 flex items-center">
                                 Page {currentPage} of {totalPages}
                             </span>
                             <Button
-                                variant="outline"
                                 onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
                                 disabled={currentPage === totalPages}
                             >

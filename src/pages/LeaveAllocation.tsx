@@ -14,14 +14,6 @@ import { Search, Plus, CalendarPlus } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { UserAvatar } from '@/components/atoms/Avatar/UserAvatar';
 import { Badge } from '@/components/ui/badge';
-import {
-    Pagination,
-    PaginationContent,
-    PaginationItem,
-    PaginationLink,
-    PaginationNext,
-    PaginationPrevious,
-} from '@/components/ui/pagination';
 import { toast } from 'sonner';
 import { employeeService } from '@/components/services/employeeService';
 import { leaveAllocationServices, LeaveBalanceResponseDto } from '@/components/leaveAllocationServices';
@@ -100,6 +92,14 @@ export const LeaveAllocation: React.FC = () => {
 
     // Pagination Logic (Paginate by Rows)
     const totalPages = Math.ceil(allTableRows.length / itemsPerPage);
+
+    // Ensure current page is valid after filtering/deletion/search
+    useEffect(() => {
+        if (currentPage > totalPages) {
+            setCurrentPage(Math.max(1, totalPages || 1));
+        }
+    }, [totalPages, currentPage]);
+
     const indexOfLastItem = currentPage * itemsPerPage;
     const indexOfFirstItem = indexOfLastItem - itemsPerPage;
     const currentTableRows = allTableRows.slice(indexOfFirstItem, indexOfLastItem);
@@ -277,45 +277,23 @@ export const LeaveAllocation: React.FC = () => {
                     </Table>
                 </div>
 
-                {/* Pagination */}
-                {totalPages > 1 && (
-                    <Pagination>
-                        <PaginationContent>
-                            <PaginationItem>
-                                <PaginationPrevious
-                                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                                    className={
-                                        currentPage === 1 ? 'pointer-events-none opacity-50' : 'cursor-pointer'
-                                    }
-                                />
-                            </PaginationItem>
-
-                            {/* Simple pagination logic: Show all pages or limited range? 
-                                Keeping it simple as per existing example which used Array.from(totalPages)
-                            */}
-                            {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-                                <PaginationItem key={page}>
-                                    <PaginationLink
-                                        isActive={page === currentPage}
-                                        onClick={() => setCurrentPage(page)}
-                                        className="cursor-pointer"
-                                    >
-                                        {page}
-                                    </PaginationLink>
-                                </PaginationItem>
-                            ))}
-
-                            <PaginationItem>
-                                <PaginationNext
-                                    onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                                    className={
-                                        currentPage === totalPages ? 'pointer-events-none opacity-50' : 'cursor-pointer'
-                                    }
-                                />
-                            </PaginationItem>
-                        </PaginationContent>
-                    </Pagination>
-                )}
+                {/* Pagination Buttons */}
+                <div className="flex justify-between items-center mt-4">
+                    <span className="text-sm text-muted-foreground">
+                        Total Allocations: {allTableRows.length}
+                    </span>
+                    <div className="flex gap-2">
+                        <Button onClick={() => setCurrentPage((p) => Math.max(1, p - 1))} disabled={currentPage === 1}>
+                            Prev
+                        </Button>
+                        <span className="px-2 flex items-center">
+                            Page {currentPage} of {totalPages}
+                        </span>
+                        <Button onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))} disabled={currentPage >= totalPages}>
+                            Next
+                        </Button>
+                    </div>
+                </div>
             </div>
         </DashboardLayout>
     );

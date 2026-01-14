@@ -441,6 +441,67 @@ export const employeeService = {
       console.error('❌ Error fetching designations:', error);
       throw error;
     }
+  },
+
+  // Helper to get logged-in user's company details
+  getMyCompanyProfile: async (): Promise<any | null> => {
+    try {
+      console.log('🔄 Fetching logged-in user company profile via /settings/company/me ...');
+      const response = await apiClient.get('/settings/company/me');
+      console.log('✅ My Company API Response:', response);
+
+      if (response && response.data) {
+        if (response.data.id) return response.data;
+        if (response.data.data) return response.data.data;
+        return response.data;
+      }
+      throw new Error('No data in company response');
+    } catch (error) {
+      console.warn('⚠️ /settings/company/me failed. Trying fallback: Fetch Employee by Email...');
+
+      try {
+        // Fallback: Get email from token, then find employee in full list
+        const token = localStorage.getItem('authToken');
+        if (!token) return null;
+
+        let userEmail = '';
+        try {
+          const base64Url = token.split('.')[1];
+          const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+          const jsonPayload = decodeURIComponent(window.atob(base64).split('').map(function (c) {
+            return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+          }).join(''));
+          const decoded = JSON.parse(jsonPayload);
+          userEmail = decoded.sub || decoded.email; // 'sub' is standard for email in this app's JWT
+        } catch (e) {
+          console.warn('Failed to decode token for email:', e);
+          return null;
+        }
+
+        if (userEmail) {
+          console.log(`🔍 Looking for employee with email: ${userEmail}`);
+          // We have to use getAllEmployees (which might be heavy, but it's a fallback)
+          // Note: getAllEmployees in this service calls /settings/employees which might be paginated or return all
+          const allEmployees = await employeeService.getAllEmployees();
+
+          if (Array.isArray(allEmployees)) {
+            const me = allEmployees.find((e: any) => e.email?.toLowerCase() === userEmail.toLowerCase());
+            if (me && me.companyId) {
+              console.log(`✅ Found myself! Company ID: ${me.companyId}`);
+              // Return a mock company object with just ID (enough for filtering)
+              return { id: me.companyId };
+            } else {
+              console.warn('❌ Could not find my email in employee list.');
+            }
+          }
+        }
+
+      } catch (fallbackError) {
+        console.error('❌ Fallback employee lookup failed:', fallbackError);
+      }
+
+      return null;
+    }
   }
 };
 

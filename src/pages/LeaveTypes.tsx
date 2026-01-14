@@ -39,6 +39,7 @@ export const LeaveTypes: React.FC = () => {
     const [editingType, setEditingType] = useState<LeaveTypeConfig | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
     const [formData, setFormData] = useState({ displayName: '' });
+    const [formDataError, setFormDataError] = useState('');
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 5;
     const { toast } = useToast();
@@ -76,8 +77,14 @@ export const LeaveTypes: React.FC = () => {
             setEditingType(null);
             setFormData({ displayName: '' });
         }
+        setFormDataError('');
         setIsDialogOpen(true);
     };
+
+    const [deleteId, setDeleteId] = useState<string | null>(null);
+    const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+
+    // ... (fetchLeaveTypes and handleOpenDialog remain the same) ...
 
     const handleSave = async () => {
         if (!formData.displayName.trim()) {
@@ -86,6 +93,17 @@ export const LeaveTypes: React.FC = () => {
                 description: 'Please enter a leave type name',
                 variant: 'destructive',
             });
+            return;
+        }
+
+        // Check for duplicate name
+        const isDuplicate = leaveTypes.some(
+            lt => lt.displayName.toLowerCase() === formData.displayName.trim().toLowerCase() && 
+            lt.id !== editingType?.id
+        );
+
+        if (isDuplicate) {
+            setFormDataError('Leave type name already exists');
             return;
         }
 
@@ -105,32 +123,44 @@ export const LeaveTypes: React.FC = () => {
             }
             setIsDialogOpen(false);
             fetchLeaveTypes();
-        } catch (error) {
+        } catch (error: any) {
             console.error("Failed to save leave type", error);
+            const errorMessage = error.response?.data?.message || 'Failed to save leave type';
             toast({
                 title: 'Error',
-                description: 'Failed to save leave type',
+                description: errorMessage,
                 variant: 'destructive',
             });
         }
     };
 
-    const handleDelete = async (id: string) => {
+    const handleDeleteClick = (id: string) => {
+        setDeleteId(id);
+        setIsDeleteDialogOpen(true);
+    };
+
+    const confirmDelete = async () => {
+        if (!deleteId) return;
+
         try {
-            await deleteLeaveType(Number(id));
+            await deleteLeaveType(Number(deleteId));
             toast({
                 title: 'Success',
                 description: 'Leave type deleted successfully',
                 variant: 'default',
             });
             fetchLeaveTypes();
-        } catch (error) {
+        } catch (error: any) {
             console.error("Failed to delete leave type", error);
+            const errorMessage = error.response?.data?.message || 'Failed to delete leave type';
             toast({
                 title: 'Error',
-                description: 'Failed to delete leave type',
+                description: errorMessage,
                 variant: 'destructive',
             });
+        } finally {
+            setIsDeleteDialogOpen(false);
+            setDeleteId(null);
         }
     };
 
@@ -155,6 +185,7 @@ export const LeaveTypes: React.FC = () => {
             <div className="space-y-6">
                 {/* Card with Search and Table */}
                 <div className="bg-white rounded-lg border border-gray-200 shadow-sm">
+                    {/* ... (Search and Header remain the same) ... */}
                     <div className="p-6 border-b border-gray-200">
                         <div className="flex items-center justify-between mb-4">
                             <div>
@@ -213,7 +244,7 @@ export const LeaveTypes: React.FC = () => {
                                                 <Button
                                                     variant="ghost"
                                                     size="sm"
-                                                    onClick={() => handleDelete(leaveType.id)}
+                                                    onClick={() => handleDeleteClick(leaveType.id)}
                                                     className="text-red-600 hover:text-red-700 hover:bg-red-50"
                                                     title="Delete"
                                                 >
@@ -236,7 +267,6 @@ export const LeaveTypes: React.FC = () => {
                         </span>
                         <div className="flex gap-2">
                             <Button
-                                variant="outline"
                                 onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
                                 disabled={currentPage === 1}
                             >
@@ -246,7 +276,6 @@ export const LeaveTypes: React.FC = () => {
                                 Page {currentPage} of {totalPages}
                             </span>
                             <Button
-                                variant="outline"
                                 onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
                                 disabled={currentPage === totalPages}
                             >
@@ -273,10 +302,22 @@ export const LeaveTypes: React.FC = () => {
                                 <Input
                                     id="displayName"
                                     value={formData.displayName}
-                                    onChange={(e) => setFormData({ displayName: e.target.value })}
+                                    onChange={(e) => {
+                                        const value = e.target.value;
+                                        if (/^[A-Za-z\s]*$/.test(value)) {
+                                            setFormData({ displayName: value });
+                                            setFormDataError('');
+                                        } else {
+                                            setFormDataError('Leave type name must contain letters only');
+                                        }
+                                    }}
                                     placeholder="e.g., Annual Leave"
                                     autoFocus
+                                    className={formDataError ? "border-red-500" : ""}
                                 />
+                                {formDataError && (
+                                    <p className="text-sm text-red-500 mt-1">{formDataError}</p>
+                                )}
                             </div>
                         </div>
                         <DialogFooter>
@@ -285,6 +326,26 @@ export const LeaveTypes: React.FC = () => {
                             </Button>
                             <Button onClick={handleSave} className="bg-blue-600 hover:bg-blue-700">
                                 {editingType ? 'Update' : 'Create'}
+                            </Button>
+                        </DialogFooter>
+                    </DialogContent>
+                </Dialog>
+
+                {/* Delete Confirmation Dialog */}
+                <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+                    <DialogContent className="sm:max-w-[425px]">
+                        <DialogHeader>
+                            <DialogTitle>Confirm Deletion</DialogTitle>
+                            <DialogDescription>
+                                Are you sure you want to delete this leave type? This action cannot be undone.
+                            </DialogDescription>
+                        </DialogHeader>
+                        <DialogFooter>
+                            <Button variant="outline" onClick={() => setIsDeleteDialogOpen(false)}>
+                                Cancel
+                            </Button>
+                            <Button onClick={confirmDelete} className="bg-red-600 hover:bg-red-700">
+                                Delete
                             </Button>
                         </DialogFooter>
                     </DialogContent>
