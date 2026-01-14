@@ -14,11 +14,11 @@ import {
   getTotalLeaveTaken,
   getRejectedRequestsCount,
   getMyLeaveBalance,
-  getAllLeaveRequests,
   getPendingApprovals as fetchPendingApprovals,
   LeaveTypeBalance,
   LeaveRequestResponse
 } from '@/components/services/dashboardService';
+import { getAllLeaveRequests, LeaveRequestItem } from '@/components/services/leaveRequestService';
 import { LeaveType } from '@/types';
 
 // Helper to map backend leave type strings to frontend keys
@@ -44,8 +44,9 @@ export const Dashboard: React.FC = () => {
   });
 
   const [leaveBalances, setLeaveBalances] = React.useState<LeaveTypeBalance[]>([]);
-  const [userRequests, setUserRequests] = React.useState<LeaveRequestResponse[]>([]);
+  const [userRequests, setUserRequests] = React.useState<LeaveRequestItem[]>([]);
   const [pendingApprovals, setPendingApprovals] = React.useState<LeaveRequestResponse[]>([]);
+  const [loadingRequests, setLoadingRequests] = React.useState(true);
 
   React.useEffect(() => {
     const fetchData = async () => {
@@ -67,13 +68,25 @@ export const Dashboard: React.FC = () => {
         const balanceResponse = await getMyLeaveBalance();
         setLeaveBalances(balanceResponse.leaveBalances);
 
-        // Fetch Recent Requests (Filtered for current user)
-        const allRequests = await getAllLeaveRequests();
-        // Assuming backend returns ALL requests, filter by current user email or ID interaction?
-        // getAllLeaveRequests returns LeaveRequestResponse list.
-        // We filter by checking if request.employee.id matches currentUser.id
-        const myRequests = allRequests.filter(req => req.employee.id === Number(currentUser.id));
-        setUserRequests(myRequests);
+        // Fetch Recent Leave Requests
+        try {
+          setLoadingRequests(true);
+          const allRequests = await getAllLeaveRequests();
+          console.log('Fetched leave requests:', allRequests);
+          console.log('Current user ID:', currentUser.id);
+          
+          // Sort by creation date (most recent first) and get all recent requests
+          const recentRequests = allRequests
+            .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+          
+          console.log('Recent requests:', recentRequests);
+          setUserRequests(recentRequests);
+        } catch (error) {
+          console.error('Failed to fetch leave requests:', error);
+          setUserRequests([]);
+        } finally {
+          setLoadingRequests(false);
+        }
 
         // Fetch Pending Approvals (For Managers/Admins)
         if (currentUser.role === 'manager' || currentUser.role === 'admin') {
@@ -83,6 +96,7 @@ export const Dashboard: React.FC = () => {
 
       } catch (error) {
         console.error("Failed to fetch dashboard data", error);
+        setLoadingRequests(false);
       }
     };
     fetchData();
@@ -262,30 +276,36 @@ export const Dashboard: React.FC = () => {
         {/* Recent Requests */}
         <div>
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-foreground">Recent Requests</h2>
+            <h2 className="text-lg font-semibold text-foreground">Recent Leave Requests</h2>
             <Button variant="ghost" size="sm" onClick={() => navigate('/my-leaves')}>
               View All
             </Button>
           </div>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {userRequests.slice(0, 4).map(request => (
-              <LeaveRequestCard
-                key={request.id}
-                request={{
-                  id: request.id.toString(),
-                  employeeId: request.employee.id,
-                  employeeName: `${request.employee.firstName} ${request.employee.lastName}`,
-                  leaveType: normalizeLeaveType(request.leaveType.leaveType),
-                  status: request.status.toLowerCase(),
-                  startDate: request.startDate,
-                  endDate: request.endDate,
-                  days: request.leaveDuration,
-                  reason: request.reason,
-                  approvalSteps: [] // Prevent crash
-                } as any}
-              />
-            ))}
-            {userRequests.length === 0 && (
+            {loadingRequests ? (
+              <div className="col-span-2 text-center py-12 bg-card border border-border rounded-xl">
+                <Clock className="w-12 h-12 mx-auto text-muted-foreground mb-4 animate-spin" />
+                <p className="text-muted-foreground">Loading leave requests...</p>
+              </div>
+            ) : userRequests.length > 0 ? (
+              userRequests.slice(0, 4).map(request => (
+                <LeaveRequestCard
+                  key={request.id}
+                  request={{
+                    id: request.id.toString(),
+                    employeeId: request.employee.id,
+                    employeeName: `${request.employee.firstName} ${request.employee.lastName}`,
+                    leaveType: normalizeLeaveType(request.leaveType.leaveType),
+                    status: request.status.toLowerCase(),
+                    startDate: request.startDate,
+                    endDate: request.endDate,
+                    days: request.leaveDuration,
+                    reason: request.reason,
+                    approvalSteps: [] // Prevent crash
+                  } as any}
+                />
+              ))
+            ) : (
               <div className="col-span-2 text-center py-12 bg-card border border-border rounded-xl">
                 <CalendarDays className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
                 <p className="text-muted-foreground">No leave requests yet</p>
