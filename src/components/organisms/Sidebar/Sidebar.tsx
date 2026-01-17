@@ -63,10 +63,11 @@ const getNavItems = (): MenuItem[] => {
       permission: 'system_settings', // Parent permission req
       children: [
         { to: '/company', label: 'Company', icon: Building2, permission: 'system_settings' },
+        { to: '/company-privilege-settings', label: 'Company Privileges', icon: Shield, permission: 'system_settings' },
         { to: '/departments', label: 'Departments', icon: Building2, permission: 'manage_departments' },
         { to: '/designations', label: 'Designations', icon: Tags, permission: 'manage_designations' },
         { to: '/roles', label: 'Roles', icon: UserCog, permission: 'manage_roles' },
-        { to: '/roles-permissions', label: 'Roles & Permissions', icon: Shield, permission: 'manage_roles' },
+        { to: '/role-privilege-settings', label: 'Role Privileges', icon: Shield, permission: 'manage_roles' },
         { to: '/leave-policies', label: 'Leave Policies', icon: FileText, permission: 'manage_policies' },
         { to: '/email-configuration', label: 'Email Configuration', icon: Mail, permission: 'system_settings' },
         { to: '/leave-notification-rules', label: 'Leave Notification Rules', icon: Settings, permission: 'system_settings' },
