@@ -25,6 +25,8 @@ import { Reports } from "./pages/Reports";
 import { EmailConfiguration } from "./pages/EmailConfiguration";
 import { LeaveNotificationRules } from "./pages/LeaveNotificationRules";
 import { LeaveAllocation } from "./pages/LeaveAllocation";
+import { CompanyPrivilegeSettings } from "./pages/CompanyPrivilegeSettings";
+import { RolePrivilegeSettings } from "./pages/RolePrivilegeSettings";
 
 import NotFound from "./pages/NotFound";
 import { HolidayConfiguration } from "./pages/HolidayConfiguration";
@@ -60,6 +62,8 @@ const App = () => (
               <Route path="/email-configuration" element={<ProtectedRoute requiredPermission="system_settings"><EmailConfiguration /></ProtectedRoute>} />
               <Route path="/leave-notification-rules" element={<ProtectedRoute requiredPermission="system_settings"><LeaveNotificationRules /></ProtectedRoute>} />
               <Route path="/leave-allocation" element={<ProtectedRoute requiredPermission="manage_policies"><LeaveAllocation /></ProtectedRoute>} />
+              <Route path="/company-privilege-settings" element={<ProtectedRoute requiredPermission="system_settings"><CompanyPrivilegeSettings /></ProtectedRoute>} />
+              <Route path="/role-privilege-settings" element={<ProtectedRoute requiredPermission="manage_roles"><RolePrivilegeSettings /></ProtectedRoute>} />
               <Route path="/reports" element={<ProtectedRoute requiredPermission="view_reports"><Reports /></ProtectedRoute>} />
               <Route path="/holiday-configuration" element={<ProtectedRoute requiredPermission="system_settings"><HolidayConfiguration /></ProtectedRoute>} />              <Route path="*" element={<NotFound />} />
             </Routes>
