@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
+import { useCompanyPrivilege } from '@/context/CompanyPrivilegeContext';
 import { UserAvatar } from '@/components/atoms/Avatar/UserAvatar';
 import {
   LayoutDashboard,
@@ -39,40 +40,42 @@ interface MenuItem {
   icon: any;
   children?: MenuItem[];
   roles?: string[];
-  permission?: string;
+  permission?: string; // Frontend permission (Role-based)
+  privilegeCode?: string; // Backend privilege (Company-based)
 }
 
 const getNavItems = (): MenuItem[] => {
   return [
-    { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, permission: 'view_dashboard' },
-    { to: '/employees', label: 'Employees', icon: Users, permission: 'manage_employees' },
+    { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, permission: 'view_dashboard', privilegeCode: 'VIEW_DASHBOARD' },
+    { to: '/employees', label: 'Employees', icon: Users, permission: 'manage_employees', privilegeCode: 'MANAGE_EMPLOYEES' },
     {
       label: 'Leave Management',
       icon: FolderOpen,
+      // privilegeCode: 'LEAVE_MANAGEMENT', // Removed: Logic relies on children visibility
       children: [
-        { to: '/apply-leave', label: 'Apply Leave', icon: CalendarPlus, permission: 'apply_leave' },
-        { to: '/leave-types', label: 'Leave Types', icon: Tags, permission: 'manage_leave_types' },
-        { to: '/my-leaves', label: 'Leave Requests', icon: CalendarDays, permission: 'view_own_leaves' },
-        { to: '/approvals', label: 'Approvals', icon: CheckSquare, permission: 'approve_leaves' },
+        { to: '/apply-leave', label: 'Apply Leave', icon: CalendarPlus, permission: 'apply_leave', privilegeCode: 'APPLY_LEAVE' },
+        { to: '/leave-types', label: 'Leave Types', icon: Tags, permission: 'manage_leave_types', privilegeCode: 'MANAGE_LEAVE_TYPES' },
+        { to: '/my-leaves', label: 'Leave Requests', icon: CalendarDays, permission: 'view_own_leaves', privilegeCode: 'VIEW_OWN_LEAVES' },
+        { to: '/approvals', label: 'Approvals', icon: CheckSquare, permission: 'approve_leaves', privilegeCode: 'APPROVE_LEAVES' },
       ],
     },
-    { to: '/reports', label: 'Reports', icon: BarChart3, permission: 'view_reports' },
+    { to: '/reports', label: 'Reports', icon: BarChart3, permission: 'view_reports', privilegeCode: 'VIEW_REPORTS' },
     {
       label: 'Settings',
       icon: Settings,
-      permission: 'system_settings', // Parent permission req
+      permission: 'system_settings',
       children: [
-        { to: '/company', label: 'Company', icon: Building2, permission: 'system_settings' },
-        { to: '/company-privilege-settings', label: 'Company Privileges', icon: Shield, permission: 'system_settings' },
-        { to: '/departments', label: 'Departments', icon: Building2, permission: 'manage_departments' },
-        { to: '/designations', label: 'Designations', icon: Tags, permission: 'manage_designations' },
-        { to: '/roles', label: 'Roles', icon: UserCog, permission: 'manage_roles' },
-        { to: '/role-privilege-settings', label: 'Role Privileges', icon: Shield, permission: 'manage_roles' },
-        { to: '/leave-policies', label: 'Leave Policies', icon: FileText, permission: 'manage_policies' },
-        { to: '/email-configuration', label: 'Email Configuration', icon: Mail, permission: 'system_settings' },
-        { to: '/leave-notification-rules', label: 'Leave Notification Rules', icon: Settings, permission: 'system_settings' },
-        { to: '/leave-allocation', label: 'Leave Allocation', icon: FileText, permission: 'manage_policies' },
-        { to: '/holiday-configuration', label: 'Holiday Configuration', icon: CalendarDays, permission: 'system_settings' },
+        { to: '/company', label: 'Company', icon: Building2, permission: 'system_settings', privilegeCode: 'MANAGE_COMPANY' }, // Generic or specific
+        { to: '/company-privilege-settings', label: 'Company Privileges', icon: Shield, permission: 'system_settings', privilegeCode: 'COMPANY_PRIVILEGE' },
+        { to: '/departments', label: 'Departments', icon: Building2, permission: 'manage_departments', privilegeCode: 'MANAGE_DEPARTMENTS' },
+        { to: '/designations', label: 'Designations', icon: Tags, permission: 'manage_designations', privilegeCode: 'MANAGE_DESIGNATION' },
+        { to: '/roles', label: 'Roles', icon: UserCog, permission: 'manage_roles', privilegeCode: 'MANAGE_ROLES' },
+        { to: '/role-privilege-settings', label: 'Role Privileges', icon: Shield, permission: 'manage_roles', privilegeCode: 'ROLE_PRIVILEGE' },
+        { to: '/leave-policies', label: 'Leave Policies', icon: FileText, permission: 'manage_policies', privilegeCode: 'MANAGE_LEAVE_POLICIES' },
+        { to: '/email-configuration', label: 'Email Configuration', icon: Mail, permission: 'system_settings', privilegeCode: 'MANAGE_EMAIL_CONFIGURATION' },
+        { to: '/leave-notification-rules', label: 'Leave Notification Rules', icon: Settings, permission: 'system_settings', privilegeCode: 'MANAGE_LEAVE_NOTIFICATION_RULES' },
+        { to: '/leave-allocation', label: 'Leave Allocation', icon: FileText, permission: 'manage_policies', privilegeCode: 'MANAGE_LEAVE_ALLOCATION' },
+        { to: '/holiday-configuration', label: 'Holiday Configuration', icon: CalendarDays, permission: 'system_settings', privilegeCode: 'MANAGE_HOLIDAY_CONFIGURATION' },
       ],
     },
   ];
@@ -80,6 +83,7 @@ const getNavItems = (): MenuItem[] => {
 
 export const Sidebar: React.FC = () => {
   const { currentUser, logout, hasPermission } = useAuth();
+  const { hasPrivilege } = useCompanyPrivilege();
   const location = useLocation();
   const navigate = useNavigate();
   const [expandedGroups, setExpandedGroups] = useState<string[]>([]);
@@ -91,12 +95,26 @@ export const Sidebar: React.FC = () => {
 
   const filterItems = (items: MenuItem[]): MenuItem[] => {
     return items.reduce((acc: MenuItem[], item) => {
-      // Check if user has permission for this item
+      // 1. Check Company Privilege (if defined)
+      // If the company doesn't have this privilege, the user can't see it regardless of role
+      if (item.privilegeCode && !hasPrivilege(item.privilegeCode)) {
+        // Special case: If it's a parent group like 'Leave Management', 
+        // we might want to hide it if specific parent privilege is missing
+        // OR we can rely on children filtering. 
+        // For now, if privilegeCode is set on parent, strict check.
+        // Exception: 'Settings' has many children with different codes, so maybe don't set code on 'Settings' parent 
+        // unless there is a global 'SETTINGS' privilege. 
+        // In getNavItems above, 'Settings' has no privilegeCode, good.
+        // 'Leave Management' has 'LEAVE_MANAGEMENT' code.
+        return acc;
+      }
+
+      // 2. Check User Role Permission (Frontend RBAC)
       if (item.permission && !hasPermission(item.permission)) {
         return acc;
       }
 
-      // If item has children, filter them recursively
+      // 3. Filter children
       if (item.children) {
         const filteredChildren = filterItems(item.children);
         // If no children remain after filtering, and it's a group (no 'to'), exclude it
