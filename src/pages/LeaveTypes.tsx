@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useRolePrivilege } from '@/context/RolePrivilegeContext';
 import { DashboardLayout } from '@/components/templates/DashboardLayout/DashboardLayout';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -34,6 +35,7 @@ const availableColors = [
 ];
 
 export const LeaveTypes: React.FC = () => {
+    const { hasRolePrivilege } = useRolePrivilege();
     const [leaveTypes, setLeaveTypes] = useState<LeaveTypeConfig[]>([]);
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [editingType, setEditingType] = useState<LeaveTypeConfig | null>(null);
@@ -98,8 +100,8 @@ export const LeaveTypes: React.FC = () => {
 
         // Check for duplicate name
         const isDuplicate = leaveTypes.some(
-            lt => lt.displayName.toLowerCase() === formData.displayName.trim().toLowerCase() && 
-            lt.id !== editingType?.id
+            lt => lt.displayName.toLowerCase() === formData.displayName.trim().toLowerCase() &&
+                lt.id !== editingType?.id
         );
 
         if (isDuplicate) {
@@ -192,10 +194,12 @@ export const LeaveTypes: React.FC = () => {
                                 <h2 className="text-lg font-semibold text-gray-900">Leave Types</h2>
                                 <p className="text-sm text-gray-500 mt-1">Manage available leave types</p>
                             </div>
-                            <Button onClick={() => handleOpenDialog()} className="bg-blue-600 hover:bg-blue-700">
-                                <Plus className="w-4 h-4 mr-2" />
-                                Add Leave Type
-                            </Button>
+                            {hasRolePrivilege('MANAGE_LEAVE_TYPES', 'canWrite') && (
+                                <Button onClick={() => handleOpenDialog()} className="bg-blue-600 hover:bg-blue-700">
+                                    <Plus className="w-4 h-4 mr-2" />
+                                    Add Leave Type
+                                </Button>
+                            )}
                         </div>
                         {/* Search */}
                         <div className="relative w-72">
@@ -233,23 +237,27 @@ export const LeaveTypes: React.FC = () => {
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap text-sm">
                                             <div className="flex justify-center gap-2">
-                                                <Button
-                                                    variant="ghost"
-                                                    size="sm"
-                                                    onClick={() => handleOpenDialog(leaveType)}
-                                                    title="Edit"
-                                                >
-                                                    <Pencil className="w-4 h-4" />
-                                                </Button>
-                                                <Button
-                                                    variant="ghost"
-                                                    size="sm"
-                                                    onClick={() => handleDeleteClick(leaveType.id)}
-                                                    className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                                                    title="Delete"
-                                                >
-                                                    <Trash2 className="w-4 h-4" />
-                                                </Button>
+                                                {hasRolePrivilege('MANAGE_LEAVE_TYPES', 'canUpdate') && (
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        onClick={() => handleOpenDialog(leaveType)}
+                                                        title="Edit"
+                                                    >
+                                                        <Pencil className="w-4 h-4" />
+                                                    </Button>
+                                                )}
+                                                {hasRolePrivilege('MANAGE_LEAVE_TYPES', 'canDelete') && (
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        onClick={() => handleDeleteClick(leaveType.id)}
+                                                        className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                                                        title="Delete"
+                                                    >
+                                                        <Trash2 className="w-4 h-4" />
+                                                    </Button>
+                                                )}
                                             </div>
                                         </td>
                                     </tr>
