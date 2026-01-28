@@ -4,6 +4,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useLeaveRequests } from '@/context/LeaveRequestContext';
 import { LeaveRequestCard } from '@/components/organisms/LeaveRequestCard/LeaveRequestCard';
 import { StatCard } from '@/components/molecules/StatCard/StatCard';
+import { useRolePrivilege } from '@/context/RolePrivilegeContext';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { CheckCircle, Clock, XCircle, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
@@ -41,7 +42,7 @@ const mapLeaveType = (backendType: string): any => {
 const transformLeaveRequest = (item: LeaveRequestItem): LeaveRequest => {
   // Build approval steps from backend data
   const approvalSteps = [];
-  
+
   // Log for debugging
   console.log('Transform leave request:', {
     id: item.id,
@@ -51,7 +52,7 @@ const transformLeaveRequest = (item: LeaveRequestItem): LeaveRequest => {
     toEmail: item.toEmail,
     ccEmails: item.ccEmails
   });
-  
+
   // Determine status for TO recipient
   let toStatus: 'pending' | 'approved' | 'rejected' = 'pending';
   if (item.status.toLowerCase() === 'approved') {
@@ -71,7 +72,7 @@ const transformLeaveRequest = (item: LeaveRequestItem): LeaveRequest => {
       toStatus = 'rejected';
     }
   }
-  
+
   // Add TO recipient as primary approver
   const toStep = {
     id: `step-${item.id}-to`,
@@ -80,12 +81,12 @@ const transformLeaveRequest = (item: LeaveRequestItem): LeaveRequest => {
     approverRole: 'Primary Approver',
     status: toStatus,
     actionDate: toStatus === 'approved' ? item.approvedAt :
-                toStatus === 'rejected' ? item.rejectedAt : undefined,
+      toStatus === 'rejected' ? item.rejectedAt : undefined,
     comment: item.comments,
     order: 1,
   };
   approvalSteps.push(toStep);
-  
+
   // Add CC recipients as secondary approvers/reviewers
   item.ccEmails.forEach((cc, index) => {
     // Determine status for CC recipient
@@ -95,7 +96,7 @@ const transformLeaveRequest = (item: LeaveRequestItem): LeaveRequest => {
     } else if (item.status.toLowerCase() === 'rejected' && item.rejectedBy?.id === cc.id) {
       ccStatus = 'rejected';
     }
-    
+
     const ccStep = {
       id: `step-${item.id}-cc-${cc.id}`,
       approverId: cc.id.toString(),
@@ -103,7 +104,7 @@ const transformLeaveRequest = (item: LeaveRequestItem): LeaveRequest => {
       approverRole: 'Reviewer (CC)',
       status: ccStatus,
       actionDate: ccStatus === 'approved' ? item.approvedAt :
-                  ccStatus === 'rejected' ? item.rejectedAt : undefined,
+        ccStatus === 'rejected' ? item.rejectedAt : undefined,
       comment: item.comments,
       order: index + 2,
     };
@@ -136,6 +137,7 @@ const transformLeaveRequest = (item: LeaveRequestItem): LeaveRequest => {
 
 export const Approvals: React.FC = () => {
   const { currentUser } = useAuth();
+  const { hasRolePrivilege } = useRolePrivilege();
   const { leaveRequests, addLeaveRequest, updateLeaveRequest } = useLeaveRequests();
   const [activeTab, setActiveTab] = useState('pending');
   const [pendingRequests, setPendingRequests] = useState<LeaveRequest[]>([]);
@@ -345,7 +347,7 @@ export const Approvals: React.FC = () => {
                         ? request.reason.trim().substring(0, 30)
                         : request.reason
                     }}
-                    showActions={activeTab === 'pending'}
+                    showActions={activeTab === 'pending' && hasRolePrivilege('APPROVE_LEAVES', 'canUpdate')}
                     onApprove={handleApprove}
                     onReject={handleReject}
                   />
