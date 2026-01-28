@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { useCompanyPrivilege } from '@/context/CompanyPrivilegeContext';
+import { useRolePrivilege } from '@/context/RolePrivilegeContext';
 import { UserAvatar } from '@/components/atoms/Avatar/UserAvatar';
 import {
   LayoutDashboard,
@@ -71,6 +72,7 @@ const getNavItems = (): MenuItem[] => {
         { to: '/designations', label: 'Designations', icon: Tags, permission: 'manage_designations', privilegeCode: 'MANAGE_DESIGNATION' },
         { to: '/roles', label: 'Roles', icon: UserCog, permission: 'manage_roles', privilegeCode: 'MANAGE_ROLES' },
         { to: '/role-privilege-settings', label: 'Role Privileges', icon: Shield, permission: 'manage_roles', privilegeCode: 'ROLE_PRIVILEGE' },
+        { to: '/user-privilege-settings', label: 'User Privileges', icon: UserCog, permission: 'manage_roles', privilegeCode: 'USER_PRIVILEGE' },
         { to: '/leave-policies', label: 'Leave Policies', icon: FileText, permission: 'manage_policies', privilegeCode: 'MANAGE_LEAVE_POLICIES' },
         { to: '/email-configuration', label: 'Email Configuration', icon: Mail, permission: 'system_settings', privilegeCode: 'MANAGE_EMAIL_CONFIGURATION' },
         { to: '/leave-notification-rules', label: 'Leave Notification Rules', icon: Settings, permission: 'system_settings', privilegeCode: 'MANAGE_LEAVE_NOTIFICATION_RULES' },
@@ -84,6 +86,7 @@ const getNavItems = (): MenuItem[] => {
 export const Sidebar: React.FC = () => {
   const { currentUser, logout, hasPermission } = useAuth();
   const { hasPrivilege } = useCompanyPrivilege();
+  const { hasRolePrivilege } = useRolePrivilege();
   const location = useLocation();
   const navigate = useNavigate();
   const [expandedGroups, setExpandedGroups] = useState<string[]>([]);
@@ -111,6 +114,11 @@ export const Sidebar: React.FC = () => {
 
       // 2. Check User Role Permission (Frontend RBAC)
       if (item.permission && !hasPermission(item.permission)) {
+        return acc;
+      }
+
+      // 4. Check Role-based CRUD Privileges (New)
+      if (item.privilegeCode && !hasRolePrivilege(item.privilegeCode, 'canRead')) {
         return acc;
       }
 
