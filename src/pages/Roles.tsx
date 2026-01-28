@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { useRolePrivilege } from "@/context/RolePrivilegeContext";
 import { DashboardLayout } from "@/components/templates/DashboardLayout/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,6 +26,7 @@ import { Role } from "@/data/roles";
 import { roleService } from "@/components/services/roleService";
 
 export const Roles: React.FC = () => {
+  const { hasRolePrivilege } = useRolePrivilege();
   const [allRoles, setAllRoles] = useState<Role[]>([]); // all roles (sorted newest first)
   const [searchTerm, setSearchTerm] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -202,10 +204,12 @@ export const Roles: React.FC = () => {
               className="pl-9"
             />
           </div>
-          <Button onClick={() => handleOpenDialog()}>
-            <Plus className="w-4 h-4 mr-2" />
-            Add Role
-          </Button>
+          {hasRolePrivilege('MANAGE_ROLES', 'canWrite') && (
+            <Button onClick={() => handleOpenDialog()}>
+              <Plus className="w-4 h-4 mr-2" />
+              Add Role
+            </Button>
+          )}
         </div>
 
         {/* Roles Table */}
@@ -238,23 +242,27 @@ export const Roles: React.FC = () => {
                     </TableCell>
                     <TableCell className="text-center">
                       <div className="flex justify-center gap-2">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleOpenDialog(role)}
-                          title="Edit role"
-                        >
-                          <Pencil className="w-4 h-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleDelete(role)}
-                          className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                          title="Delete role"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
+                        {hasRolePrivilege('MANAGE_ROLES', 'canUpdate') && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleOpenDialog(role)}
+                            title="Edit role"
+                          >
+                            <Pencil className="w-4 h-4" />
+                          </Button>
+                        )}
+                        {hasRolePrivilege('MANAGE_ROLES', 'canDelete') && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleDelete(role)}
+                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                            title="Delete role"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        )}
                       </div>
                     </TableCell>
                   </TableRow>
