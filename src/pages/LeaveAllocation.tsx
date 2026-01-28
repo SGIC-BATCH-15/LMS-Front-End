@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Search, Plus, CalendarPlus } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
+import { useRolePrivilege } from '@/context/RolePrivilegeContext';
 import { UserAvatar } from '@/components/atoms/Avatar/UserAvatar';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
@@ -20,6 +21,7 @@ import { leaveAllocationServices, LeaveBalanceResponseDto } from '@/components/l
 
 export const LeaveAllocation: React.FC = () => {
     const { hasPermission } = useAuth();
+    const { hasRolePrivilege } = useRolePrivilege();
     const [allocations, setAllocations] = useState<LeaveBalanceResponseDto[]>([]);
     const [loading, setLoading] = useState(false);
 
@@ -193,24 +195,28 @@ export const LeaveAllocation: React.FC = () => {
                     </div>
                     <div className="flex gap-2">
                         {/* Secondary Button: Carry Forward Allocation */}
-                        <Button
-                            className="gap-2"
-                            onClick={handleCarryForwardAllocation}
-                            disabled={isCarryingForward}
-                        >
-                            <CalendarPlus className={isCarryingForward ? "w-4 h-4 animate-spin" : "w-4 h-4"} />
-                            {isCarryingForward ? 'Processing...' : 'Carry Forward Allocation'}
-                        </Button>
+                        {hasRolePrivilege('MANAGE_LEAVE_ALLOCATION', 'canWrite') && (
+                            <Button
+                                className="gap-2"
+                                onClick={handleCarryForwardAllocation}
+                                disabled={isCarryingForward}
+                            >
+                                <CalendarPlus className={isCarryingForward ? "w-4 h-4 animate-spin" : "w-4 h-4"} />
+                                {isCarryingForward ? 'Processing...' : 'Carry Forward Allocation'}
+                            </Button>
+                        )}
 
                         {/* Primary Button: Leave Allocation */}
-                        <Button
-                            className="gap-2"
-                            onClick={handleLeaveAllocation}
-                            disabled={isAllocating}
-                        >
-                            <Plus className={isAllocating ? "w-4 h-4 animate-spin" : "w-4 h-4"} />
-                            {isAllocating ? 'Allocating...' : 'Leave Allocation'}
-                        </Button>
+                        {hasRolePrivilege('MANAGE_LEAVE_ALLOCATION', 'canWrite') && (
+                            <Button
+                                className="gap-2"
+                                onClick={handleLeaveAllocation}
+                                disabled={isAllocating}
+                            >
+                                <Plus className={isAllocating ? "w-4 h-4 animate-spin" : "w-4 h-4"} />
+                                {isAllocating ? 'Allocating...' : 'Leave Allocation'}
+                            </Button>
+                        )}
                     </div>
                 </div>
 
