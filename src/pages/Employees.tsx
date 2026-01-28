@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useRolePrivilege } from '@/context/RolePrivilegeContext';
 import { DashboardLayout } from '@/components/templates/DashboardLayout/DashboardLayout';
 import { UserAvatar } from '@/components/atoms/Avatar/UserAvatar';
 
@@ -42,6 +43,7 @@ import {
 } from "@/components/ui/pagination";
 
 export const Employees: React.FC = () => {
+  const { hasRolePrivilege } = useRolePrivilege();
   const [users, setUsers] = useState<User[]>([]);
   const [companies, setCompanies] = useState<Company[]>([]);
   const [departments, setDepartments] = useState<APIDepartment[]>([]);
@@ -739,197 +741,199 @@ export const Employees: React.FC = () => {
             </Select>
           </div>
           <div className="flex gap-2">
-            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-              <DialogTrigger asChild>
-                <Button className="gap-2" onClick={() => handleOpenDialog()}>
-                  <Plus className="w-4 h-4" />
-                  Add Employee
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="sm:max-w-[600px]">
-                <DialogHeader>
-                  <DialogTitle>{editingUser ? 'Edit Employee' : 'Add New Employee'}</DialogTitle>
-                </DialogHeader>
-                <div className="space-y-4 py-4">
+            {hasRolePrivilege('MANAGE_EMPLOYEES', 'canWrite') && (
+              <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button className="gap-2" onClick={() => handleOpenDialog()}>
+                    <Plus className="w-4 h-4" />
+                    Add Employee
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-[600px]">
+                  <DialogHeader>
+                    <DialogTitle>{editingUser ? 'Edit Employee' : 'Add New Employee'}</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-4 py-4">
 
-                  {/* Names */}
-                  <div className="grid grid-cols-2 gap-4">
+                    {/* Names */}
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="firstName">First Name *</Label>
+                        <Input
+                          id="firstName"
+                          placeholder="John"
+                          value={formData.firstName}
+                          onChange={e => setFormData({ ...formData, firstName: e.target.value })}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="lastName">Last Name *</Label>
+                        <Input
+                          id="lastName"
+                          placeholder="Doe"
+                          value={formData.lastName}
+                          onChange={e => setFormData({ ...formData, lastName: e.target.value })}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Email */}
                     <div className="space-y-2">
-                      <Label htmlFor="firstName">First Name *</Label>
+                      <Label htmlFor="email">Email *</Label>
                       <Input
-                        id="firstName"
-                        placeholder="John"
-                        value={formData.firstName}
-                        onChange={e => setFormData({ ...formData, firstName: e.target.value })}
+                        id="email"
+                        type="email"
+                        placeholder="john@company.com"
+                        value={formData.email}
+                        onChange={e => setFormData({ ...formData, email: e.target.value })}
                       />
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="lastName">Last Name *</Label>
-                      <Input
-                        id="lastName"
-                        placeholder="Doe"
-                        value={formData.lastName}
-                        onChange={e => setFormData({ ...formData, lastName: e.target.value })}
-                      />
-                    </div>
-                  </div>
-
-                  {/* Email */}
-                  <div className="space-y-2">
-                    <Label htmlFor="email">Email *</Label>
-                    <Input
-                      id="email"
-                      type="email"
-                      placeholder="john@company.com"
-                      value={formData.email}
-                      onChange={e => setFormData({ ...formData, email: e.target.value })}
-                    />
-                  </div>
 
 
 
-                  {/* Company & Department */}
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="company">Company *</Label>
-                      <Select
-                        value={formData.companyId}
-                        onValueChange={(value) => {
-                          setFormData({ ...formData, companyId: value, departmentId: '' });
-                          fetchDepartmentsByCompany(value);
-                        }}
-                        disabled={loadingCompanies}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder={loadingCompanies ? "Loading companies..." : "Select Company"} />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {(companies || []).map(comp => (
-                            <SelectItem key={comp.id} value={comp.id.toString()}>
-                              {comp.companyName || comp.name || 'Unnamed Company'}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="department">Department *</Label>
-                      <Select
-                        value={formData.departmentId}
-                        onValueChange={v => setFormData({ ...formData, departmentId: v })}
-                        disabled={!formData.companyId || loadingDepartments}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder={
-                            !formData.companyId ? "Select Company first" :
-                              loadingDepartments ? "Loading departments..." :
-                                "Select Department"
-                          } />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {departments.length === 0 && formData.companyId && !loadingDepartments ? (
-                            <SelectItem value="no-departments" disabled className="text-muted-foreground italic">
-                              No departments exist
-                            </SelectItem>
-                          ) : (
-                            dialogDepartments.map(dept => (
-                              <SelectItem key={dept.id} value={dept.id.toString()}>
-                                {dept.name || 'Unnamed Department'}
+                    {/* Company & Department */}
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="company">Company *</Label>
+                        <Select
+                          value={formData.companyId}
+                          onValueChange={(value) => {
+                            setFormData({ ...formData, companyId: value, departmentId: '' });
+                            fetchDepartmentsByCompany(value);
+                          }}
+                          disabled={loadingCompanies}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder={loadingCompanies ? "Loading companies..." : "Select Company"} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {(companies || []).map(comp => (
+                              <SelectItem key={comp.id} value={comp.id.toString()}>
+                                {comp.companyName || comp.name || 'Unnamed Company'}
                               </SelectItem>
-                            ))
-                          )}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-
-                  {/* Role & Designation */}
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="role">Role *</Label>
-                      <Select
-                        value={formData.role}
-                        onValueChange={v => setFormData({ ...formData, role: v })} // Remove UserRole casting
-                        disabled={loadingRoles}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder={loadingRoles ? "Loading roles..." : "Select Role"} />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {roles.length === 0 && !loadingRoles ? (
-                            <SelectItem value="no-roles" disabled className="text-muted-foreground italic">
-                              No roles available
-                            </SelectItem>
-                          ) : (
-                            roles.map(role => (
-                              <SelectItem key={role.id} value={role.id.toString()}>{role.name}</SelectItem>
-                            ))
-                          )}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="designation">Designation *</Label>
-                      <Select
-                        value={formData.designation}
-                        onValueChange={v => setFormData({ ...formData, designation: v })}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select Designation" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {designations
-                            .filter(d => !formData.departmentId || d.departmentId?.toString() === formData.departmentId)
-                            .map(des => (
-                              <SelectItem key={des.id} value={des.id.toString()}>{des.name}</SelectItem>
                             ))}
-                        </SelectContent>
-                      </Select>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="department">Department *</Label>
+                        <Select
+                          value={formData.departmentId}
+                          onValueChange={v => setFormData({ ...formData, departmentId: v })}
+                          disabled={!formData.companyId || loadingDepartments}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder={
+                              !formData.companyId ? "Select Company first" :
+                                loadingDepartments ? "Loading departments..." :
+                                  "Select Department"
+                            } />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {departments.length === 0 && formData.companyId && !loadingDepartments ? (
+                              <SelectItem value="no-departments" disabled className="text-muted-foreground italic">
+                                No departments exist
+                              </SelectItem>
+                            ) : (
+                              dialogDepartments.map(dept => (
+                                <SelectItem key={dept.id} value={dept.id.toString()}>
+                                  {dept.name || 'Unnamed Department'}
+                                </SelectItem>
+                              ))
+                            )}
+                          </SelectContent>
+                        </Select>
+                      </div>
                     </div>
-                  </div>
 
-                  {/* Dates & Experience */}
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="joinDate">Join Date *</Label>
-                      <Input
-                        id="joinDate"
-                        type="date"
-                        value={formData.joinDate}
-                        onChange={e => setFormData({ ...formData, joinDate: e.target.value })}
-                      />
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Current: {calculateCurrentExperience(formData.joinDate)} years
-                      </p>
+                    {/* Role & Designation */}
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="role">Role *</Label>
+                        <Select
+                          value={formData.role}
+                          onValueChange={v => setFormData({ ...formData, role: v })} // Remove UserRole casting
+                          disabled={loadingRoles}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder={loadingRoles ? "Loading roles..." : "Select Role"} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {roles.length === 0 && !loadingRoles ? (
+                              <SelectItem value="no-roles" disabled className="text-muted-foreground italic">
+                                No roles available
+                              </SelectItem>
+                            ) : (
+                              roles.map(role => (
+                                <SelectItem key={role.id} value={role.id.toString()}>{role.name}</SelectItem>
+                              ))
+                            )}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="designation">Designation *</Label>
+                        <Select
+                          value={formData.designation}
+                          onValueChange={v => setFormData({ ...formData, designation: v })}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select Designation" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {designations
+                              .filter(d => !formData.departmentId || d.departmentId?.toString() === formData.departmentId)
+                              .map(des => (
+                                <SelectItem key={des.id} value={des.id.toString()}>{des.name}</SelectItem>
+                              ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="prevExp">Previous Exp (Years)</Label>
-                      <Input
-                        id="prevExp"
-                        type="number"
-                        min="0"
-                        value={formData.previousExperience}
-                        onChange={e => setFormData({ ...formData, previousExperience: parseInt(e.target.value) || 0 })}
-                      />
-                    </div>
-                  </div>
 
-                  <div className="flex justify-end gap-2 mt-6">
-                    <Button variant="outline" onClick={() => setIsDialogOpen(false)} disabled={savingEmployee}>Cancel</Button>
-                    <Button onClick={handleSave} disabled={savingEmployee || (editingUser && !hasFormChanges())}>
-                      {savingEmployee ? (
-                        <>
-                          <span className="mr-2">Saving...</span>
-                          <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
-                        </>
-                      ) : (
-                        `${editingUser ? 'Update' : 'Create'} Employee`
-                      )}
-                    </Button>
+                    {/* Dates & Experience */}
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="joinDate">Join Date *</Label>
+                        <Input
+                          id="joinDate"
+                          type="date"
+                          value={formData.joinDate}
+                          onChange={e => setFormData({ ...formData, joinDate: e.target.value })}
+                        />
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Current: {calculateCurrentExperience(formData.joinDate)} years
+                        </p>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="prevExp">Previous Exp (Years)</Label>
+                        <Input
+                          id="prevExp"
+                          type="number"
+                          min="0"
+                          value={formData.previousExperience}
+                          onChange={e => setFormData({ ...formData, previousExperience: parseInt(e.target.value) || 0 })}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex justify-end gap-2 mt-6">
+                      <Button variant="outline" onClick={() => setIsDialogOpen(false)} disabled={savingEmployee}>Cancel</Button>
+                      <Button onClick={handleSave} disabled={savingEmployee || (editingUser && !hasFormChanges())}>
+                        {savingEmployee ? (
+                          <>
+                            <span className="mr-2">Saving...</span>
+                            <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                          </>
+                        ) : (
+                          `${editingUser ? 'Update' : 'Create'} Employee`
+                        )}
+                      </Button>
+                    </div>
                   </div>
-                </div>
-              </DialogContent>
-            </Dialog>
+                </DialogContent>
+              </Dialog>
+            )}
           </div>
         </div>
 
@@ -992,12 +996,16 @@ export const Employees: React.FC = () => {
                     </TableCell>
                     <TableCell className="text-center">
                       <div className="flex justify-center gap-2">
-                        <Button variant="ghost" size="sm" onClick={() => handleOpenDialog(user)} title="Edit">
-                          <Pencil className="w-4 h-4" />
-                        </Button>
-                        <Button variant="ghost" size="icon" className="text-destructive" onClick={() => handleDeleteClick(user.id)} title="Delete">
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
+                        {hasRolePrivilege('MANAGE_EMPLOYEES', 'canUpdate') && (
+                          <Button variant="ghost" size="sm" onClick={() => handleOpenDialog(user)} title="Edit">
+                            <Pencil className="w-4 h-4" />
+                          </Button>
+                        )}
+                        {hasRolePrivilege('MANAGE_EMPLOYEES', 'canDelete') && (
+                          <Button variant="ghost" size="icon" className="text-destructive" onClick={() => handleDeleteClick(user.id)} title="Delete">
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        )}
                       </div>
                     </TableCell>
                   </TableRow>
@@ -1018,8 +1026,8 @@ export const Employees: React.FC = () => {
                 onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
                 disabled={currentPage === 1}
                 className={`px-4 py-1.5 rounded-md text-white font-medium transition-colors ${currentPage === 1
-                    ? 'bg-blue-300 cursor-not-allowed opacity-50'
-                    : 'bg-[#8ab8ff] hover:bg-[#6996e0]'
+                  ? 'bg-blue-300 cursor-not-allowed opacity-50'
+                  : 'bg-[#8ab8ff] hover:bg-[#6996e0]'
                   }`}
               >
                 Prev
@@ -1033,8 +1041,8 @@ export const Employees: React.FC = () => {
                 onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
                 disabled={currentPage === totalPages || totalPages === 0}
                 className={`px-4 py-1.5 rounded-md text-white font-medium transition-colors ${currentPage === totalPages || totalPages === 0
-                    ? 'bg-blue-300 cursor-not-allowed opacity-50'
-                    : 'bg-[#8ab8ff] hover:bg-[#6996e0]'
+                  ? 'bg-blue-300 cursor-not-allowed opacity-50'
+                  : 'bg-[#8ab8ff] hover:bg-[#6996e0]'
                   }`}
               >
                 Next
