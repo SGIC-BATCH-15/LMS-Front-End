@@ -27,8 +27,10 @@ import {
     assignPrivilegesToCompany,
     removePrivilegeFromCompany
 } from '@/components/services/CompanyPrivilegeService';
+import { useRolePrivilege } from '@/context/RolePrivilegeContext';
 
 export const CompanyPrivilegeSettings: React.FC = () => {
+    const { hasRolePrivilege } = useRolePrivilege();
     const [companies, setCompanies] = useState<CompanyResponse[]>([]);
     const [allPrivileges, setAllPrivileges] = useState<PrivilegeDTO[]>([]);
     const [selectedCompanyId, setSelectedCompanyId] = useState<string>('');
@@ -198,6 +200,7 @@ export const CompanyPrivilegeSettings: React.FC = () => {
                                                                 }
                                                                 className="cursor-pointer"
                                                                 aria-label={`Assign ${privilege.name}`}
+                                                                disabled={!hasRolePrivilege('COMPANY_PRIVILEGE', 'canUpdate')}
                                                             />
                                                         </TableCell>
                                                     </TableRow>
