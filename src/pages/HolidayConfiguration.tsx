@@ -33,6 +33,7 @@ import { format, parseISO } from "date-fns";
 import { CalendarIcon, Plus, Trash2, Save, Pencil } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from '@/context/AuthContext';
+import { useRolePrivilege } from '@/context/RolePrivilegeContext';
 import { companies } from '@/data/companies';
 import { toast } from "sonner";
 import {
@@ -77,6 +78,7 @@ const parseBackendDate = (dateData: any): Date => {
 
 export const HolidayConfiguration = () => {
     const { hasPermission } = useAuth();
+    const { hasRolePrivilege } = useRolePrivilege();
 
     // Use numeric ID for company to match backend if possible, but companies data might be string. 
     // We will parse when sending to backend.
@@ -332,15 +334,17 @@ export const HolidayConfiguration = () => {
                                     <CardTitle>Holiday List</CardTitle>
                                     <Dialog open={isAddHolidayOpen} onOpenChange={setIsAddHolidayOpen}>
                                         <DialogTrigger asChild>
-                                            <Button size="sm" onClick={() => {
-                                                setEditingHolidayId(null);
-                                                setNewHolidayName('');
-                                                setNewHolidayDate(undefined);
-                                                setNewHolidayType('public');
-                                            }}>
-                                                <Plus className="mr-2 h-4 w-4" />
-                                                Add Holiday
-                                            </Button>
+                                            {hasRolePrivilege('MANAGE_HOLIDAY_CONFIGURATION', 'canWrite') && (
+                                                <Button size="sm" onClick={() => {
+                                                    setEditingHolidayId(null);
+                                                    setNewHolidayName('');
+                                                    setNewHolidayDate(undefined);
+                                                    setNewHolidayType('public');
+                                                }}>
+                                                    <Plus className="mr-2 h-4 w-4" />
+                                                    Add Holiday
+                                                </Button>
+                                            )}
                                         </DialogTrigger>
                                         <DialogContent>
                                             <DialogHeader>
@@ -433,22 +437,26 @@ export const HolidayConfiguration = () => {
                                                             </div>
                                                         </div>
                                                         <div className="flex items-center">
-                                                            <Button
-                                                                variant="ghost"
-                                                                size="icon"
-                                                                className="text-primary hover:text-primary hover:bg-primary/10 mr-1"
-                                                                onClick={() => handleEditHoliday(holiday)}
-                                                            >
-                                                                <Pencil className="h-4 w-4" />
-                                                            </Button>
-                                                            <Button
-                                                                variant="ghost"
-                                                                size="icon"
-                                                                className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                                                                onClick={() => handleDeleteHoliday(holiday.id)}
-                                                            >
-                                                                <Trash2 className="h-4 w-4" />
-                                                            </Button>
+                                                            {hasRolePrivilege('MANAGE_HOLIDAY_CONFIGURATION', 'canUpdate') && (
+                                                                <Button
+                                                                    variant="ghost"
+                                                                    size="icon"
+                                                                    className="text-primary hover:text-primary hover:bg-primary/10 mr-1"
+                                                                    onClick={() => handleEditHoliday(holiday)}
+                                                                >
+                                                                    <Pencil className="h-4 w-4" />
+                                                                </Button>
+                                                            )}
+                                                            {hasRolePrivilege('MANAGE_HOLIDAY_CONFIGURATION', 'canDelete') && (
+                                                                <Button
+                                                                    variant="ghost"
+                                                                    size="icon"
+                                                                    className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                                                                    onClick={() => handleDeleteHoliday(holiday.id)}
+                                                                >
+                                                                    <Trash2 className="h-4 w-4" />
+                                                                </Button>
+                                                            )}
                                                         </div>
                                                     </div>
                                                 ))}
@@ -498,6 +506,7 @@ export const HolidayConfiguration = () => {
                                                 id={`day-${day.id}`}
                                                 checked={tempDays.includes(day.id)}
                                                 onCheckedChange={() => toggleWeeklyOffDay(day.id)}
+                                                disabled={!hasRolePrivilege('MANAGE_HOLIDAY_CONFIGURATION', 'canUpdate')}
                                             />
                                             <Label
                                                 htmlFor={`day-${day.id}`}
@@ -512,10 +521,12 @@ export const HolidayConfiguration = () => {
                                     ))}
                                 </div>
                                 <div className="mt-6 flex justify-end">
-                                    <Button onClick={handleSaveWeeklyOffs} className="gap-2">
-                                        <Save className="h-4 w-4" />
-                                        Update Changes
-                                    </Button>
+                                    {hasRolePrivilege('MANAGE_HOLIDAY_CONFIGURATION', 'canUpdate') && (
+                                        <Button onClick={handleSaveWeeklyOffs} className="gap-2">
+                                            <Save className="h-4 w-4" />
+                                            Update Changes
+                                        </Button>
+                                    )}
                                 </div>
                             </CardContent>
                         </Card>

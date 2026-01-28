@@ -12,11 +12,13 @@ import { Department } from '@/types';
 import { useToast } from '@/hooks/use-toast';
 import { departmentService, Company } from '@/components/services/departmentService';
 import { useAuth } from '@/context/AuthContext';
+import { useRolePrivilege } from '@/context/RolePrivilegeContext';
 
 
 
 export const Departments: React.FC = () => {
     const { currentUser } = useAuth();
+    const { hasRolePrivilege } = useRolePrivilege();
     const [departments, setDepartments] = useState<Department[]>([]);
     const [companies, setCompanies] = useState<Company[]>([]);
     const [searchTerm, setSearchTerm] = useState('');
@@ -246,62 +248,64 @@ export const Departments: React.FC = () => {
                             className="pl-9"
                         />
                     </div>
-                    <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-                        <DialogTrigger asChild>
-                            <Button onClick={() => handleOpenDialog()}>
-                                <Plus className="w-4 h-4 mr-2" />
-                                Add Department
-                            </Button>
-                        </DialogTrigger>
-                        <DialogContent>
-                            <DialogHeader>
-                                <DialogTitle>{editingDept ? 'Edit Department' : 'Add New Department'}</DialogTitle>
-                                <DialogDescription>
-                                    {editingDept ? 'Update department information' : 'Create a new department'}
-                                </DialogDescription>
-                            </DialogHeader>
-                            <div className="space-y-4 py-4">
-                                <div className="space-y-2">
-                                    <Label htmlFor="company">Company</Label>
-                                    <Select
-                                        value={formData.companyId}
-                                        onValueChange={(value) => setFormData({ ...formData, companyId: value })}
+                    {hasRolePrivilege('MANAGE_DEPARTMENTS', 'canWrite') && (
+                        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+                            <DialogTrigger asChild>
+                                <Button onClick={() => handleOpenDialog()}>
+                                    <Plus className="w-4 h-4 mr-2" />
+                                    Add Department
+                                </Button>
+                            </DialogTrigger>
+                            <DialogContent>
+                                <DialogHeader>
+                                    <DialogTitle>{editingDept ? 'Edit Department' : 'Add New Department'}</DialogTitle>
+                                    <DialogDescription>
+                                        {editingDept ? 'Update department information' : 'Create a new department'}
+                                    </DialogDescription>
+                                </DialogHeader>
+                                <div className="space-y-4 py-4">
+                                    <div className="space-y-2">
+                                        <Label htmlFor="company">Company</Label>
+                                        <Select
+                                            value={formData.companyId}
+                                            onValueChange={(value) => setFormData({ ...formData, companyId: value })}
+                                        >
+                                            <SelectTrigger>
+                                                <SelectValue placeholder="Select a company" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {companies.map((company) => (
+                                                    <SelectItem key={company.id} value={company.id.toString()}>
+                                                        {company.name}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label htmlFor="name">Department Name</Label>
+                                        <Input
+                                            id="name"
+                                            value={formData.name}
+                                            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                                            placeholder="e.g., Engineering"
+                                        />
+                                    </div>
+                                </div>
+                                <DialogFooter>
+                                    <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
+                                        Cancel
+                                    </Button>
+                                    <Button
+                                        onClick={handleSave}
+                                        disabled={!isValid || (editingDept ? !isDirty : false)}
                                     >
-                                        <SelectTrigger>
-                                            <SelectValue placeholder="Select a company" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {companies.map((company) => (
-                                                <SelectItem key={company.id} value={company.id.toString()}>
-                                                    {company.name}
-                                                </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-                                <div className="space-y-2">
-                                    <Label htmlFor="name">Department Name</Label>
-                                    <Input
-                                        id="name"
-                                        value={formData.name}
-                                        onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                                        placeholder="e.g., Engineering"
-                                    />
-                                </div>
-                            </div>
-                            <DialogFooter>
-                                <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
-                                    Cancel
-                                </Button>
-                                <Button
-                                    onClick={handleSave}
-                                    disabled={!isValid || (editingDept ? !isDirty : false)}
-                                >
-                                    {editingDept ? 'Update' : 'Create'}
-                                </Button>
-                            </DialogFooter>
-                        </DialogContent>
-                    </Dialog>
+                                        {editingDept ? 'Update' : 'Create'}
+                                    </Button>
+                                </DialogFooter>
+                            </DialogContent>
+                        </Dialog>
+                    )}
 
                     {/* Deletion confirmation dialog */}
                     <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
@@ -350,20 +354,24 @@ export const Departments: React.FC = () => {
                                         <TableCell>{getCompanyName(dept.companyId)}</TableCell>
                                         <TableCell className="text-center">
                                             <div className="flex justify-center gap-2">
-                                                <Button
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    onClick={() => handleOpenDialog(dept)}
-                                                >
-                                                    <Pencil className="w-4 h-4" />
-                                                </Button>
-                                                <Button
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    onClick={() => requestDelete(dept.id, dept.name)}
-                                                >
-                                                    <Trash2 className="w-4 h-4 text-red-600" />
-                                                </Button>
+                                                {hasRolePrivilege('MANAGE_DEPARTMENTS', 'canUpdate') && (
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        onClick={() => handleOpenDialog(dept)}
+                                                    >
+                                                        <Pencil className="w-4 h-4" />
+                                                    </Button>
+                                                )}
+                                                {hasRolePrivilege('MANAGE_DEPARTMENTS', 'canDelete') && (
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        onClick={() => requestDelete(dept.id, dept.name)}
+                                                    >
+                                                        <Trash2 className="w-4 h-4 text-red-600" />
+                                                    </Button>
+                                                )}
                                             </div>
                                         </TableCell>
                                     </TableRow>
@@ -385,7 +393,7 @@ export const Departments: React.FC = () => {
                                 disabled={currentPage === 1}
                             >
                                 Previous
-                            </Button> 
+                            </Button>
                             <span className="px-2 flex items-center">
                                 Page {currentPage} of {totalPages}
                             </span>

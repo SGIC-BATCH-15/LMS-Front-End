@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { useRolePrivilege } from "@/context/RolePrivilegeContext";
 import { DashboardLayout } from "@/components/templates/DashboardLayout/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -44,6 +45,7 @@ interface Designation {
 }
 
 export const Designations: React.FC = () => {
+  const { hasRolePrivilege } = useRolePrivilege();
   const [designations, setDesignations] = useState<Designation[]>([]);
   const [loading, setLoading] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -280,10 +282,12 @@ export const Designations: React.FC = () => {
           <p className="text-muted-foreground">
             Add and manage job titles available in the system
           </p>
-          <Button onClick={() => handleOpenDialog()}>
-            <Plus className="w-4 h-4 mr-2" />
-            Add Designation
-          </Button>
+          {hasRolePrivilege('MANAGE_DESIGNATION', 'canWrite') && (
+            <Button onClick={() => handleOpenDialog()}>
+              <Plus className="w-4 h-4 mr-2" />
+              Add Designation
+            </Button>
+          )}
         </div>
 
         {/* Search and Filter */}
@@ -332,23 +336,27 @@ export const Designations: React.FC = () => {
                   </TableCell>
                   <TableCell className="text-center">
                     <div className="flex justify-center gap-2">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleOpenDialog(item)}
-                        title="Edit designation"
-                      >
-                        <Pencil className="w-4 h-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="text-destructive hover:text-destructive"
-                        onClick={() => openDeleteDialog(item.id)}
-                        title="Delete designation"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
+                      {hasRolePrivilege('MANAGE_DESIGNATION', 'canUpdate') && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleOpenDialog(item)}
+                          title="Edit designation"
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </Button>
+                      )}
+                      {hasRolePrivilege('MANAGE_DESIGNATION', 'canDelete') && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-destructive hover:text-destructive"
+                          onClick={() => openDeleteDialog(item.id)}
+                          title="Delete designation"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      )}
                     </div>
                   </TableCell>
                 </TableRow>

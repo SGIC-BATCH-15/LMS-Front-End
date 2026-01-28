@@ -21,6 +21,7 @@ import {
 } from '@/components/services/leavePoliciesServices';
 import { getAllLeaveTypes, LeaveTypeResponseDto } from '@/components/services/leavetypeService';
 import { useToast } from "@/components/ui/use-toast";
+import { useRolePrivilege } from '@/context/RolePrivilegeContext';
 
 interface PolicyFormData {
   leaveType: LeaveType | '';
@@ -43,6 +44,7 @@ const initialFormData: PolicyFormData = {
 const KNOWN_LEAVE_TYPES = ['annual', 'casual', 'sick', 'maternity', 'paternity', 'unpaid'];
 
 export const LeavePolicies: React.FC = () => {
+  const { hasRolePrivilege } = useRolePrivilege();
   const [filterType, setFilterType] = useState('all');
   const [policies, setPolicies] = useState<LeavePolicy[]>([]);
   const [formData, setFormData] = useState<PolicyFormData>(initialFormData);
@@ -50,11 +52,11 @@ export const LeavePolicies: React.FC = () => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingPolicy, setEditingPolicy] = useState<LeavePolicy | null>(null);
   const [leaveTypes, setLeaveTypes] = useState<LeaveTypeResponseDto[]>([]);
-  
+
   // Delete confirmation dialog state
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [policyToDelete, setPolicyToDelete] = useState<string | null>(null);
-  
+
   // Track original form data for update button state
   const [originalFormData, setOriginalFormData] = useState<PolicyFormData>(initialFormData);
   const [modifiedFields, setModifiedFields] = useState<Set<string>>(new Set());
@@ -96,10 +98,10 @@ export const LeavePolicies: React.FC = () => {
           carryForward: p.carryForwardAllowed,
           maxCarryForward: p.maxCarryForwardDays || 0,
         }));
-        
+
         // Sort policies in descending order by ID (newest first - LIFO)
         mappedPolicies.sort((a, b) => parseInt(b.id) - parseInt(a.id));
-        
+
         setPolicies(mappedPolicies);
         // Note: totalPages will be calculated derived from filtered list length
       }
@@ -135,7 +137,7 @@ export const LeavePolicies: React.FC = () => {
       ...prev,
       [field]: value,
     }));
-    
+
     // Clear global form error on any input change
     if (formError) setFormError(null);
 
@@ -152,7 +154,7 @@ export const LeavePolicies: React.FC = () => {
         return newSet;
       });
     }
-    
+
     // Clear error for the field being edited
     if (errors[field]) {
       setErrors(prev => {
@@ -220,24 +222,24 @@ export const LeavePolicies: React.FC = () => {
     // Check for duplicate policy
     // Check for overlapping experience ranges for the same leave type
     const isOverlapping = policies.some(policy => {
-        // Skip current policy if editing
-        if (editingPolicy && policy.id === editingPolicy.id) return false;
+      // Skip current policy if editing
+      if (editingPolicy && policy.id === editingPolicy.id) return false;
 
-        // Only check overlapping for the same Leave Type
-        if (policy.leaveType.toLowerCase() !== formData.leaveType.toLowerCase()) return false;
+      // Only check overlapping for the same Leave Type
+      if (policy.leaveType.toLowerCase() !== formData.leaveType.toLowerCase()) return false;
 
-        // Check if ranges overlap: (StartA < EndB) && (EndA > StartB)
-        // Using < and >= to handle contiguous ranges correctly if needed, but typically overlap is strict
-        // User scenario: If 0-3 exists, don't allow 0-1 or 0-2 (which are subsets)
-        // This simple intersection logic covers subsets, supersets, and partial overlaps
-        const isOverlap = (formData.minExperience < policy.maxExperience) && (formData.maxExperience > policy.minExperience);
-        
-        return isOverlap;
+      // Check if ranges overlap: (StartA < EndB) && (EndA > StartB)
+      // Using < and >= to handle contiguous ranges correctly if needed, but typically overlap is strict
+      // User scenario: If 0-3 exists, don't allow 0-1 or 0-2 (which are subsets)
+      // This simple intersection logic covers subsets, supersets, and partial overlaps
+      const isOverlap = (formData.minExperience < policy.maxExperience) && (formData.maxExperience > policy.minExperience);
+
+      return isOverlap;
     });
 
     if (isOverlapping) {
-        setFormError("Experience range overlaps with an existing policy for this Leave Type.");
-        return;
+      setFormError("Experience range overlaps with an existing policy for this Leave Type.");
+      return;
     }
 
     const leaveTypeId = getLeaveTypeIdByName(formData.leaveType);
@@ -326,7 +328,7 @@ export const LeavePolicies: React.FC = () => {
 
   const confirmDelete = async () => {
     if (!policyToDelete) return;
-    
+
     try {
       // Call the delete API
       await deleteLeavePolicy(parseInt(policyToDelete));
@@ -382,10 +384,12 @@ export const LeavePolicies: React.FC = () => {
             }
           }}>
             <DialogTrigger asChild>
-              <Button className="gap-2" onClick={handleOpenDialog}>
-                <Plus className="w-4 h-4" />
-                Add Policy
-              </Button>
+              {hasRolePrivilege('MANAGE_LEAVE_POLICIES', 'canWrite') && (
+                <Button className="gap-2" onClick={handleOpenDialog}>
+                  <Plus className="w-4 h-4" />
+                  Add Policy
+                </Button>
+              )}
             </DialogTrigger>
             <DialogContent className="sm:max-w-[500px]">
               <DialogHeader>
@@ -394,7 +398,7 @@ export const LeavePolicies: React.FC = () => {
                   {editingPolicy ? 'Update leave policy information based on experience range' : 'Create a new leave policy with experience-based allocation'}
                 </DialogDescription>
               </DialogHeader>
-              
+
               {formError && (
                 <Alert variant="destructive" className="mb-4">
                   <AlertCircle className="h-4 w-4" />
@@ -497,7 +501,7 @@ export const LeavePolicies: React.FC = () => {
                 <DialogClose asChild>
                   <Button variant="outline">Cancel</Button>
                 </DialogClose>
-                <Button 
+                <Button
                   onClick={handleSubmit}
                   disabled={editingPolicy ? modifiedFields.size === 0 : false}
                 >
@@ -550,12 +554,16 @@ export const LeavePolicies: React.FC = () => {
                   </TableCell>
                   <TableCell className="text-center">
                     <div className="flex justify-center gap-2">
-                      <Button variant="ghost" size="sm" onClick={() => handleEditPolicy(policy)} title="Edit">
-                        <Pencil className="w-4 h-4" />
-                      </Button>
-                      <Button variant="ghost" size="icon" className="text-destructive" onClick={() => handleDeletePolicy(policy.id)}>
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
+                      {hasRolePrivilege('MANAGE_LEAVE_POLICIES', 'canUpdate') && (
+                        <Button variant="ghost" size="sm" onClick={() => handleEditPolicy(policy)} title="Edit">
+                          <Pencil className="w-4 h-4" />
+                        </Button>
+                      )}
+                      {hasRolePrivilege('MANAGE_LEAVE_POLICIES', 'canDelete') && (
+                        <Button variant="ghost" size="icon" className="text-destructive" onClick={() => handleDeletePolicy(policy.id)}>
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      )}
                     </div>
                   </TableCell>
                 </TableRow>

@@ -28,9 +28,11 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertCircle } from 'lucide-react';
 import { LeaveRequestCard } from '@/components/organisms/LeaveRequestCard/LeaveRequestCard';
+import { useRolePrivilege } from '@/context/RolePrivilegeContext';
 
 export const MyLeaves: React.FC = () => {
   const { currentUser } = useAuth();
+  const { hasRolePrivilege } = useRolePrivilege();
   const { leaveRequests, updateLeaveRequest, addLeaveRequest } = useLeaveRequests();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('all');
@@ -134,7 +136,7 @@ export const MyLeaves: React.FC = () => {
   const convertedRequestsWithFullReason: LeaveRequest[] = backendLeaveRequests.map(req => {
     // Build approval steps from backend data
     const approvalSteps = [];
-    
+
     // Determine status for TO recipient
     let toStatus: 'pending' | 'approved' | 'rejected' = 'pending';
     if (req.status.toLowerCase() === 'approved') {
@@ -150,7 +152,7 @@ export const MyLeaves: React.FC = () => {
         toStatus = 'rejected'; // Fallback
       }
     }
-    
+
     // Add TO recipient as primary approver
     const toStep = {
       id: `step-${req.id}-to`,
@@ -159,12 +161,12 @@ export const MyLeaves: React.FC = () => {
       approverRole: 'Primary Approver',
       status: toStatus,
       actionDate: toStatus === 'approved' ? req.approvedAt :
-                  toStatus === 'rejected' ? req.rejectedAt : undefined,
+        toStatus === 'rejected' ? req.rejectedAt : undefined,
       comment: req.comments,
       order: 1,
     };
     approvalSteps.push(toStep);
-    
+
     // Add CC recipients as secondary approvers/reviewers
     req.ccEmails.forEach((cc, index) => {
       let ccStatus: 'pending' | 'approved' | 'rejected' = 'pending';
@@ -173,7 +175,7 @@ export const MyLeaves: React.FC = () => {
       } else if (req.status.toLowerCase() === 'rejected' && req.rejectedBy?.id === cc.id) {
         ccStatus = 'rejected';
       }
-      
+
       const ccStep = {
         id: `step-${req.id}-cc-${cc.id}`,
         approverId: cc.id.toString(),
@@ -181,7 +183,7 @@ export const MyLeaves: React.FC = () => {
         approverRole: 'Reviewer (CC)',
         status: ccStatus,
         actionDate: ccStatus === 'approved' ? req.approvedAt :
-                    ccStatus === 'rejected' ? req.rejectedAt : undefined,
+          ccStatus === 'rejected' ? req.rejectedAt : undefined,
         comment: req.comments,
         order: index + 2,
       };
@@ -238,7 +240,7 @@ export const MyLeaves: React.FC = () => {
   const convertedRequests: LeaveRequest[] = backendLeaveRequests.map(req => {
     // Build approval steps from backend data
     const approvalSteps = [];
-    
+
     // Determine status for TO recipient
     let toStatus: 'pending' | 'approved' | 'rejected' = 'pending';
     if (req.status.toLowerCase() === 'approved') {
@@ -254,7 +256,7 @@ export const MyLeaves: React.FC = () => {
         toStatus = 'rejected'; // Fallback
       }
     }
-    
+
     // Add TO recipient as primary approver
     const toStep = {
       id: `step-${req.id}-to`,
@@ -263,12 +265,12 @@ export const MyLeaves: React.FC = () => {
       approverRole: 'Primary Approver',
       status: toStatus,
       actionDate: toStatus === 'approved' ? req.approvedAt :
-                  toStatus === 'rejected' ? req.rejectedAt : undefined,
+        toStatus === 'rejected' ? req.rejectedAt : undefined,
       comment: req.comments,
       order: 1,
     };
     approvalSteps.push(toStep);
-    
+
     // Add CC recipients as secondary approvers/reviewers
     req.ccEmails.forEach((cc, index) => {
       let ccStatus: 'pending' | 'approved' | 'rejected' = 'pending';
@@ -277,7 +279,7 @@ export const MyLeaves: React.FC = () => {
       } else if (req.status.toLowerCase() === 'rejected' && req.rejectedBy?.id === cc.id) {
         ccStatus = 'rejected';
       }
-      
+
       const ccStep = {
         id: `step-${req.id}-cc-${cc.id}`,
         approverId: cc.id.toString(),
@@ -285,7 +287,7 @@ export const MyLeaves: React.FC = () => {
         approverRole: 'Reviewer (CC)',
         status: ccStatus,
         actionDate: ccStatus === 'approved' ? req.approvedAt :
-                    ccStatus === 'rejected' ? req.rejectedAt : undefined,
+          ccStatus === 'rejected' ? req.rejectedAt : undefined,
         comment: req.comments,
         order: index + 2,
       };
@@ -501,8 +503,8 @@ export const MyLeaves: React.FC = () => {
                             ? request.reason + '... '
                             : request.reason
                         }}
-                        onEdit={handleEdit}
-                        onCancel={handleCancelRequest}
+                        onEdit={hasRolePrivilege('APPLY_LEAVE', 'canUpdate') ? handleEdit : undefined}
+                        onCancel={hasRolePrivilege('APPLY_LEAVE', 'canDelete') ? handleCancelRequest : undefined}
                       />
                       {shouldShowReadMore(request.id) && (
                         <span

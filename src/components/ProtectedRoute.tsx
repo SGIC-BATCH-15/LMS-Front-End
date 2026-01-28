@@ -2,13 +2,17 @@ import React from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 
+import { useRolePrivilege } from '@/context/RolePrivilegeContext';
+
 interface ProtectedRouteProps {
     children: React.ReactNode;
     requiredPermission?: string;
+    requiredPrivilegeCode?: string;
 }
 
-export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, requiredPermission }) => {
+export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, requiredPermission, requiredPrivilegeCode }) => {
     const { isAuthenticated, isLoading, hasPermission } = useAuth();
+    const { hasRolePrivilege } = useRolePrivilege();
 
     // Show loading state while checking authentication
     if (isLoading) {
@@ -26,7 +30,8 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, requir
         return <Navigate to="/login" replace />;
     }
 
-    if (requiredPermission && !hasPermission(requiredPermission)) {
+    if ((requiredPermission && !hasPermission(requiredPermission)) ||
+        (requiredPrivilegeCode && !hasRolePrivilege(requiredPrivilegeCode, 'canRead'))) {
         return (
             <div className="flex flex-col items-center justify-center h-screen bg-gray-100">
                 <h1 className="text-2xl font-bold text-red-600 mb-2">Access Denied</h1>

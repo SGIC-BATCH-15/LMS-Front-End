@@ -23,8 +23,10 @@ import { Badge } from '@/components/ui/badge';
 import { DashboardLayout } from '@/components/templates/DashboardLayout/DashboardLayout';
 import { useToast } from '@/hooks/use-toast';
 import { emailService, EmailConfigDTO } from '@/components/services/emailService';
+import { useRolePrivilege } from '@/context/RolePrivilegeContext';
 
 export const EmailConfiguration: React.FC = () => {
+    const { hasRolePrivilege } = useRolePrivilege();
     const [emailConfigs, setEmailConfigs] = useState<EmailConfigDTO[]>([]);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [selectedConfig, setSelectedConfig] = useState<EmailConfigDTO | null>(null);
@@ -234,7 +236,7 @@ export const EmailConfiguration: React.FC = () => {
                                 <p className="text-sm text-gray-500 mt-1">Manage your SMTP server settings</p>
                             </div>
                             {/* Only show Add button if no configuration exists */}
-                            {emailConfigs.length === 0 && (
+                            {emailConfigs.length === 0 && hasRolePrivilege('MANAGE_EMAIL_CONFIGURATION', 'canWrite') && (
                                 <Button onClick={handleOpenAddModal} className="bg-blue-600 hover:bg-blue-700">
                                     <Plus className="w-4 h-4 mr-2" />
                                     Add Configuration
@@ -304,14 +306,16 @@ export const EmailConfiguration: React.FC = () => {
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap text-sm">
                                                 <div className="flex justify-end gap-2">
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="sm"
-                                                        onClick={() => handleOpenEditModal(config)}
-                                                        title="Edit"
-                                                    >
-                                                        <Pencil className="w-4 h-4" />
-                                                    </Button>
+                                                    {hasRolePrivilege('MANAGE_EMAIL_CONFIGURATION', 'canUpdate') && (
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="sm"
+                                                            onClick={() => handleOpenEditModal(config)}
+                                                            title="Edit"
+                                                        >
+                                                            <Pencil className="w-4 h-4" />
+                                                        </Button>
+                                                    )}
                                                 </div>
                                             </td>
                                         </tr>

@@ -24,6 +24,7 @@ import { Plus, Pencil, Trash2, Search, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Company as CompanyType } from '@/data/companies';
 import { addCompany, getAllCompanies, updateCompany, deleteCompany, searchCompanies } from '@/components/services/companyService';
+import { useRolePrivilege } from '@/context/RolePrivilegeContext';
 import {
     Pagination,
     PaginationContent,
@@ -34,6 +35,7 @@ import {
 } from "@/components/ui/pagination";
 
 export const Company: React.FC = () => {
+    const { hasRolePrivilege } = useRolePrivilege();
     const [companies, setCompanies] = useState<CompanyType[]>([]);
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [editingCompany, setEditingCompany] = useState<CompanyType | null>(null);
@@ -245,10 +247,12 @@ export const Company: React.FC = () => {
                                 Manage your company details and credentials
                             </p>
                         </div>
-                        <Button onClick={() => handleOpenDialog()}>
-                            <Plus className="w-4 h-4 mr-2" />
-                            Add Company
-                        </Button>
+                        {hasRolePrivilege('MANAGE_COMPANY', 'canWrite') && (
+                            <Button onClick={() => handleOpenDialog()}>
+                                <Plus className="w-4 h-4 mr-2" />
+                                Add Company
+                            </Button>
+                        )}
                     </div>
 
                     <div className="relative w-72">
@@ -299,21 +303,25 @@ export const Company: React.FC = () => {
                                         <TableCell>{company.phoneNumber}</TableCell>
                                         <TableCell className="text-right">
                                             <div className="flex justify-end gap-2">
-                                                <Button
-                                                    variant="ghost"
-                                                    size="sm"
-                                                    onClick={() => handleOpenDialog(company)}
-                                                >
-                                                    <Pencil className="w-4 h-4" />
-                                                </Button>
-                                                <Button
-                                                    variant="ghost"
-                                                    size="sm"
-                                                    onClick={() => handleDelete(company.id)}
-                                                    className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                                                >
-                                                    <Trash2 className="w-4 h-4" />
-                                                </Button>
+                                                {hasRolePrivilege('MANAGE_COMPANY', 'canUpdate') && (
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        onClick={() => handleOpenDialog(company)}
+                                                    >
+                                                        <Pencil className="w-4 h-4" />
+                                                    </Button>
+                                                )}
+                                                {hasRolePrivilege('MANAGE_COMPANY', 'canDelete') && (
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        onClick={() => handleDelete(company.id)}
+                                                        className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                                                    >
+                                                        <Trash2 className="w-4 h-4" />
+                                                    </Button>
+                                                )}
                                             </div>
                                         </TableCell>
                                     </TableRow>
