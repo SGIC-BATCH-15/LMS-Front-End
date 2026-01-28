@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { useLeaveRequests } from '@/context/LeaveRequestContext';
 import { User, LeaveType, LeaveRequest, ApprovalStep, BackendEmployee } from '@/types';
-import { users, leaveBalances } from '@/data/mockData';
+import { users } from '@/data/mockData';
 import { UserAvatar } from '@/components/atoms/Avatar/UserAvatar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -19,6 +19,7 @@ import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { getAllLeaveTypes, LeaveTypeResponseDto } from '@/components/services/leavetypeService';
 import { fetchToRecipient, fetchCcEmails, createLeaveRequest } from '@/components/services/leaveRequestService';
+import { getMyLeaveBalance, LeaveBalanceItem } from '@/components/services/leaveAllocationService';
 
 const leaveTypes: { value: LeaveType; label: string }[] = [
   { value: 'annual', label: 'Annual Leave' },
@@ -43,6 +44,7 @@ export const ComposeLeaveForm: React.FC<ComposeLeaveFormProps> = ({ initialData,
   const [leaveTypesFromDB, setLeaveTypesFromDB] = useState<LeaveTypeResponseDto[]>([]);
   const [toRecipientsFromDB, setToRecipientsFromDB] = useState<BackendEmployee[]>([]);
   const [ccRecipientsFromDB, setCcRecipientsFromDB] = useState<BackendEmployee[]>([]);
+  const [leaveBalancesFromDB, setLeaveBalancesFromDB] = useState<LeaveBalanceItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
@@ -71,7 +73,7 @@ export const ComposeLeaveForm: React.FC<ComposeLeaveFormProps> = ({ initialData,
     const fetchData = async () => {
       try {
         setLoading(true);
-        
+
         // Fetch leave types from database
         const leaveTypesResponse = await getAllLeaveTypes(0, 100);
         console.log("Leave Types Response:", leaveTypesResponse);
@@ -87,6 +89,11 @@ export const ComposeLeaveForm: React.FC<ComposeLeaveFormProps> = ({ initialData,
         console.log("CC Recipients Final:", ccRecipients);
         setCcRecipientsFromDB(ccRecipients);
 
+        // Fetch leave balances for the current user
+        const leaveBalanceResponse = await getMyLeaveBalance();
+        console.log("Leave Balance Response:", leaveBalanceResponse);
+        setLeaveBalancesFromDB(leaveBalanceResponse.leaveBalances || []);
+
         setLoading(false);
       } catch (error: any) {
         console.error('Error fetching data:', error);
@@ -94,6 +101,7 @@ export const ComposeLeaveForm: React.FC<ComposeLeaveFormProps> = ({ initialData,
         // Ensure arrays are set even on error
         setToRecipientsFromDB([]);
         setCcRecipientsFromDB([]);
+        setLeaveBalancesFromDB([]);
         setLoading(false);
       }
     };
@@ -104,12 +112,13 @@ export const ComposeLeaveForm: React.FC<ComposeLeaveFormProps> = ({ initialData,
   // Filter to show only HR/Admin users for To field
   const availableHrUsers = users.filter(u => u.id !== currentUser.id && (u.role === 'admin' || u.departmentId === 'dept-2'));
   const availableUsers = users.filter(u => u.id !== currentUser.id);
-  const userBalances = leaveBalances.filter(b => b.userId === currentUser.id);
 
   const days = startDate && endDate ? differenceInDays(endDate, startDate) + 1 : 0;
   const effectiveDays = isHalfDay ? 0.5 : days;
-  const selectedBalance = userBalances.find(b => b.leaveType === leaveType);
-  const availableDays = selectedBalance ? selectedBalance.total - selectedBalance.used - selectedBalance.pending : 0;
+
+  // Use backend leave balances instead of mock data
+  const selectedBalance = leaveBalancesFromDB.find(b => b.leaveTypeId === leaveTypeId);
+  const availableDays = selectedBalance ? selectedBalance.remainingDays : 0;
 
   // Helper function to count words
   const countWords = (text: string): number => {
@@ -148,7 +157,7 @@ export const ComposeLeaveForm: React.FC<ComposeLeaveFormProps> = ({ initialData,
     console.log('TO Recipient:', toRecipient);
     console.log('CC Recipients:', ccRecipients);
     console.log('Leave Type ID:', leaveTypeId);
-    
+
     if (!toRecipient) {
       toast.error('Please select a recipient in the "To" field');
       return;
@@ -206,7 +215,7 @@ export const ComposeLeaveForm: React.FC<ComposeLeaveFormProps> = ({ initialData,
 
       if (response.statusCode === 2001) {
         toast.success(response.statusMessage || 'Leave request submitted successfully!');
-        
+
         // Optionally, update local state for UI consistency
         if (!initialData) {
           // Create approval steps for local context
@@ -392,8 +401,8 @@ export const ComposeLeaveForm: React.FC<ComposeLeaveFormProps> = ({ initialData,
             <Label htmlFor="leave-type" className="text-muted-foreground text-sm">
               <span className="text-red-500">*</span> Leave Type
             </Label>
-            <Select 
-              value={leaveTypeId?.toString()} 
+            <Select
+              value={leaveTypeId?.toString()}
               onValueChange={(v) => {
                 const selectedId = parseInt(v);
                 setLeaveTypeId(selectedId);
@@ -516,7 +525,7 @@ export const ComposeLeaveForm: React.FC<ComposeLeaveFormProps> = ({ initialData,
             const newValue = e.target.value;
             const newWordCount = countWords(newValue);
             setReason(newValue);
-            
+
             if (newWordCount > maxWords) {
               setWordCountError(`Word limit exceeded! You have ${newWordCount} words, but maximum is ${maxWords} words.`);
             } else {
@@ -538,7 +547,7 @@ export const ComposeLeaveForm: React.FC<ComposeLeaveFormProps> = ({ initialData,
         <div className="text-sm text-muted-foreground">
           {selectedBalance && (
             <span>
-              Available {leaveType} leave: <strong className="text-foreground">{availableDays} days</strong>
+              Available {selectedBalance.leaveTypeName} leave: <strong className="text-foreground">{availableDays} days</strong>
             </span>
           )}
         </div>
