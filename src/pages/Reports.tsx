@@ -9,6 +9,7 @@ import apiClient from '@/components/services/apiClient';
 import { Department } from '@/types';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { useRolePrivilege } from '@/context/RolePrivilegeContext';
 
 const leaveUsageData = [
     { month: 'Jan', annual: 45, sick: 12, casual: 8 },
@@ -43,6 +44,7 @@ const trendData = [
 ];
 
 export const Reports: React.FC = () => {
+    const { hasRolePrivilege } = useRolePrivilege();
     const [selectedYear, setSelectedYear] = useState('2026');
     const [selectedDepartment, setSelectedDepartment] = useState('all');
     const [departments, setDepartments] = useState<Department[]>([]);
@@ -61,18 +63,18 @@ export const Reports: React.FC = () => {
     const fetchAllLeaveRequestsForExport = async () => {
         try {
             let allLeaveRequests: any[] = [];
-            
+
             if (selectedDepartment === 'all') {
                 // Fetch leave requests for all departments
                 if (departments.length > 0) {
-                    const promises = departments.map(dept => 
-                        apiClient.get('/report/leave_request/get_all', { 
-                            params: { year: selectedYear, departmentId: dept.id } 
+                    const promises = departments.map(dept =>
+                        apiClient.get('/report/leave_request/get_all', {
+                            params: { year: selectedYear, departmentId: dept.id }
                         })
                     );
-                    
+
                     const responses = await Promise.all(promises);
-                    
+
                     responses.forEach((response, index) => {
                         const data = response.data.data;
                         const dept = departments[index];
@@ -87,8 +89,8 @@ export const Reports: React.FC = () => {
                     });
                 } else {
                     // If departments haven't loaded yet, try without departmentId
-                    const response = await apiClient.get('/report/leave_request/get_all', { 
-                        params: { year: selectedYear } 
+                    const response = await apiClient.get('/report/leave_request/get_all', {
+                        params: { year: selectedYear }
                     });
                     const data = response.data.data;
                     if (Array.isArray(data)) {
@@ -97,16 +99,16 @@ export const Reports: React.FC = () => {
                 }
             } else {
                 // Fetch for specific department
-                const response = await apiClient.get('/report/leave_request/get_all', { 
-                    params: { year: selectedYear, departmentId: selectedDepartment } 
+                const response = await apiClient.get('/report/leave_request/get_all', {
+                    params: { year: selectedYear, departmentId: selectedDepartment }
                 });
                 const data = response.data.data;
-                
+
                 if (Array.isArray(data)) {
                     allLeaveRequests = data;
                 }
             }
-            
+
             return allLeaveRequests;
         } catch (error) {
             console.error('Error fetching leave requests for export:', error);
@@ -119,7 +121,7 @@ export const Reports: React.FC = () => {
         setIsExporting(true);
         try {
             const leaveRequests = await fetchAllLeaveRequestsForExport();
-            
+
             if (leaveRequests.length === 0) {
                 alert('No leave requests found for the selected filters');
                 setIsExporting(false);
@@ -128,20 +130,20 @@ export const Reports: React.FC = () => {
 
             // Create PDF document
             const doc = new jsPDF();
-            
+
             // Add title
             doc.setFontSize(18);
             doc.setFont('helvetica', 'bold');
             doc.text('Leave Requests Report', 14, 22);
-            
+
             // Add filters info
             doc.setFontSize(12);
             doc.setFont('helvetica', 'normal');
-            const departmentText = selectedDepartment === 'all' ? 'All Departments' : 
+            const departmentText = selectedDepartment === 'all' ? 'All Departments' :
                 departments.find(d => d.id === selectedDepartment)?.name || 'Unknown Department';
             doc.text(`Year: ${selectedYear} | Department: ${departmentText}`, 14, 32);
             doc.text(`Generated on: ${new Date().toLocaleDateString()}`, 14, 40);
-            
+
             // Prepare data for table
             const tableData = leaveRequests.map((request: any) => [
                 request.employee?.firstName || request.employeeName || 'N/A',
@@ -183,12 +185,12 @@ export const Reports: React.FC = () => {
             doc.setFont('helvetica', 'bold');
             doc.text('Summary:', 14, finalY);
             doc.setFont('helvetica', 'normal');
-            
+
             const totalRequests = leaveRequests.length;
             const pendingCount = leaveRequests.filter((req: any) => req.status === 'PENDING').length;
             const approvedCount = leaveRequests.filter((req: any) => req.status === 'APPROVED').length;
             const rejectedCount = leaveRequests.filter((req: any) => req.status === 'REJECTED').length;
-            
+
             doc.text(`Total Leave Requests: ${totalRequests}`, 14, finalY + 8);
             doc.text(`Pending Approvals: ${pendingCount}`, 14, finalY + 16);
             doc.text(`Approved Requests: ${approvedCount}`, 14, finalY + 24);
@@ -198,10 +200,10 @@ export const Reports: React.FC = () => {
             const timestamp = new Date().toISOString().split('T')[0];
             const sanitizedDeptName = departmentText.replace(/[^a-zA-Z0-9]/g, '-').toLowerCase();
             const filename = `leave-requests-report-${selectedYear}-${sanitizedDeptName}-${timestamp}.pdf`;
-            
+
             // Save the PDF
             doc.save(filename);
-            
+
         } catch (error) {
             console.error('Error generating PDF:', error);
             alert('Error generating PDF. Please try again.');
@@ -217,7 +219,7 @@ export const Reports: React.FC = () => {
             try {
                 const response = await apiClient.get('/settings/department/get_all_department');
                 const data = response.data.data;
-                
+
                 if (Array.isArray(data)) {
                     const mappedDepartments = data.map((d: any) => ({
                         id: d.id?.toString(),
@@ -245,20 +247,20 @@ export const Reports: React.FC = () => {
             if (departments.length === 0) {
                 return;
             }
-            
+
             try {
                 const deptRequestCounts: any = {};
                 const colors = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#f97316'];
-                
+
                 // Always fetch for all departments for the pie chart
-                const promises = departments.map(dept => 
-                    apiClient.get('/report/leave_request/get_all', { 
-                        params: { year: selectedYear, departmentId: dept.id } 
+                const promises = departments.map(dept =>
+                    apiClient.get('/report/leave_request/get_all', {
+                        params: { year: selectedYear, departmentId: dept.id }
                     })
                 );
-                
+
                 const responses = await Promise.all(promises);
-                
+
                 responses.forEach((response, index) => {
                     const data = response.data.data;
                     const dept = departments[index];
@@ -269,7 +271,7 @@ export const Reports: React.FC = () => {
                         };
                     }
                 });
-                
+
                 // Convert to pie chart format
                 const deptWiseData = Object.keys(deptRequestCounts)
                     .map((deptId, index) => ({
@@ -278,7 +280,7 @@ export const Reports: React.FC = () => {
                         color: colors[index % colors.length]
                     }))
                     .filter(d => d.value > 0);
-                    
+
                 setDepartmentWiseData(deptWiseData);
             } catch (error) {
                 console.error('Error fetching department-wise data:', error);
@@ -295,25 +297,25 @@ export const Reports: React.FC = () => {
             if (departments.length === 0) {
                 return;
             }
-            
+
             try {
                 const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
                 const monthlyTrend: any = {};
-                
+
                 // Initialize all months with 0
                 monthNames.forEach(month => {
                     monthlyTrend[month] = 0;
                 });
-                
+
                 // Fetch for all departments to get total trend
-                const promises = departments.map(dept => 
-                    apiClient.get('/report/leave_request/get_all', { 
-                        params: { year: selectedYear, departmentId: dept.id } 
+                const promises = departments.map(dept =>
+                    apiClient.get('/report/leave_request/get_all', {
+                        params: { year: selectedYear, departmentId: dept.id }
                     })
                 );
-                
+
                 const responses = await Promise.all(promises);
-                
+
                 // Count total leave requests per month across all departments
                 responses.forEach((response) => {
                     const data = response.data.data;
@@ -326,13 +328,13 @@ export const Reports: React.FC = () => {
                         });
                     }
                 });
-                
+
                 // Convert to array format for chart
                 const trendData = monthNames.map(month => ({
                     month: month,
                     leaves: monthlyTrend[month]
                 }));
-                
+
                 setTrendAnalysisData(trendData);
             } catch (error) {
                 console.error('Error fetching trend analysis data:', error);
@@ -349,22 +351,22 @@ export const Reports: React.FC = () => {
             setIsLoadingLeaveRequests(true);
             try {
                 let allLeaveRequests: any[] = [];
-                
+
                 if (selectedDepartment === 'all') {
                     // Fetch leave requests for all departments and sum them up
                     let totalCount = 0;
                     let pendingCount = 0;
-                    
+
                     if (departments.length > 0) {
                         // Fetch for each department and sum
-                        const promises = departments.map(dept => 
-                            apiClient.get('/report/leave_request/get_all', { 
-                                params: { year: selectedYear, departmentId: dept.id } 
+                        const promises = departments.map(dept =>
+                            apiClient.get('/report/leave_request/get_all', {
+                                params: { year: selectedYear, departmentId: dept.id }
                             })
                         );
-                        
+
                         const responses = await Promise.all(promises);
-                        
+
                         responses.forEach((response, index) => {
                             const data = response.data.data;
                             const dept = departments[index];
@@ -382,8 +384,8 @@ export const Reports: React.FC = () => {
                         });
                     } else {
                         // If departments haven't loaded yet, try without departmentId
-                        const response = await apiClient.get('/report/leave_request/get_all', { 
-                            params: { year: selectedYear } 
+                        const response = await apiClient.get('/report/leave_request/get_all', {
+                            params: { year: selectedYear }
                         });
                         const data = response.data.data;
                         if (Array.isArray(data)) {
@@ -392,16 +394,16 @@ export const Reports: React.FC = () => {
                             allLeaveRequests = data;
                         }
                     }
-                    
+
                     setTotalLeaveRequests(totalCount);
                     setPendingApprovals(pendingCount);
                 } else {
                     // Fetch for specific department
-                    const response = await apiClient.get('/report/leave_request/get_all', { 
-                        params: { year: selectedYear, departmentId: selectedDepartment } 
+                    const response = await apiClient.get('/report/leave_request/get_all', {
+                        params: { year: selectedYear, departmentId: selectedDepartment }
                     });
                     const data = response.data.data;
-                    
+
                     if (Array.isArray(data)) {
                         setTotalLeaveRequests(data.length);
                         setPendingApprovals(data.filter((req: any) => req.status === 'PENDING').length);
@@ -411,15 +413,15 @@ export const Reports: React.FC = () => {
                         setPendingApprovals(0);
                     }
                 }
-                
+
                 // Process monthly data for chart
                 const monthlyData = processMonthlyLeaveData(allLeaveRequests);
                 setMonthlyLeaveData(monthlyData);
-                
+
                 // Process leave type summary
                 const leaveTypeSummaryData = processLeaveTypeSummary(allLeaveRequests);
                 setLeaveTypeSummary(leaveTypeSummaryData);
-                
+
             } catch (error) {
                 console.error('Error fetching leave requests:', error);
                 setTotalLeaveRequests(0);
@@ -433,12 +435,12 @@ export const Reports: React.FC = () => {
 
         fetchLeaveRequests();
     }, [selectedYear, selectedDepartment, departments]);
-    
+
     // Process leave type summary
     const processLeaveTypeSummary = (leaveRequests: any[]) => {
         const colors = ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4', '#f97316'];
         const leaveTypeCounts: any = {};
-        
+
         // Count leave requests by type
         leaveRequests.forEach((request: any) => {
             const leaveType = request.leaveType?.leaveType || 'Other';
@@ -447,7 +449,7 @@ export const Reports: React.FC = () => {
             }
             leaveTypeCounts[leaveType] += 1;
         });
-        
+
         // Convert to array format
         return Object.keys(leaveTypeCounts)
             .map((type, index) => ({
@@ -457,37 +459,37 @@ export const Reports: React.FC = () => {
             }))
             .sort((a, b) => b.count - a.count); // Sort by count descending
     };
-    
+
     // Process leave requests into monthly data grouped by leave type
     const processMonthlyLeaveData = (leaveRequests: any[]) => {
         const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
         const monthlyStats: any = {};
-        
+
         // Initialize all months
         monthNames.forEach(month => {
             monthlyStats[month] = {};
         });
-        
+
         // Count leave requests by month and type
         leaveRequests.forEach((request: any) => {
             const startDate = new Date(request.startDate);
             const monthIndex = startDate.getMonth();
             const month = monthNames[monthIndex];
             const leaveType = request.leaveType?.leaveType || 'Other';
-            
+
             if (!monthlyStats[month][leaveType]) {
                 monthlyStats[month][leaveType] = 0;
             }
             monthlyStats[month][leaveType] += 1;
         });
-        
+
         // Get unique leave types
         const leaveTypeSet = new Set<string>();
         leaveRequests.forEach((request: any) => {
             const leaveType = request.leaveType?.leaveType || 'Other';
             leaveTypeSet.add(leaveType);
         });
-        
+
         // Convert to array format for chart
         return monthNames.map(month => {
             const monthData: any = { month };
@@ -497,12 +499,12 @@ export const Reports: React.FC = () => {
             return monthData;
         });
     };
-    
+
     // Process department-wise distribution data
     const processDepartmentWiseData = (allLeaveRequests: any[]) => {
         const colors = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#f97316'];
         const deptCounts: any = {};
-        
+
         // If a specific department is selected, show only that department
         if (selectedDepartment !== 'all') {
             const selectedDept = departments.find(d => d.id === selectedDepartment);
@@ -515,7 +517,7 @@ export const Reports: React.FC = () => {
             }
             return [];
         }
-        
+
         // For 'all' departments, we already fetched data per department in the API calls
         // Count based on which department API call returned the data
         departments.forEach((dept, index) => {
@@ -526,13 +528,13 @@ export const Reports: React.FC = () => {
                 color: colors[index % colors.length]
             };
         });
-        
+
         // Since we're making separate API calls per department, 
         // we need to track counts during the fetch
         // For now, distribute the leave requests evenly as a fallback
         // This will be updated when we have the proper counts
         const totalRequests = allLeaveRequests.length;
-        
+
         // Try to determine department from the structure if available
         allLeaveRequests.forEach((request: any) => {
             // The request might have department info in different places
@@ -551,7 +553,7 @@ export const Reports: React.FC = () => {
                 }
             }
         });
-        
+
         // Convert to array format for pie chart
         return Object.keys(deptCounts)
             .map(deptId => ({
@@ -600,10 +602,12 @@ export const Reports: React.FC = () => {
                                 )}
                             </SelectContent>
                         </Select>
-                        <Button variant="outline" onClick={handleExportPDF} disabled={isExporting}>
-                            <Download className="w-4 h-4 mr-2" />
-                            {isExporting ? 'Exporting...' : 'Export'}
-                        </Button>
+                        {hasRolePrivilege('VIEW_REPORTS', 'canWrite') && (
+                            <Button variant="outline" onClick={handleExportPDF} disabled={isExporting}>
+                                <Download className="w-4 h-4 mr-2" />
+                                {isExporting ? 'Exporting...' : 'Export'}
+                            </Button>
+                        )}
                     </div>
                 </div>
 
@@ -642,11 +646,11 @@ export const Reports: React.FC = () => {
                                         .map((leaveType, index) => {
                                             const colors = ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4', '#f97316'];
                                             return (
-                                                <Bar 
-                                                    key={leaveType} 
-                                                    dataKey={leaveType} 
-                                                    fill={colors[index % colors.length]} 
-                                                    name={leaveType} 
+                                                <Bar
+                                                    key={leaveType}
+                                                    dataKey={leaveType}
+                                                    fill={colors[index % colors.length]}
+                                                    name={leaveType}
                                                 />
                                             );
                                         })
@@ -733,6 +737,6 @@ export const Reports: React.FC = () => {
                     </Card>
                 </div>
             </div>
-        </DashboardLayout>
+        </DashboardLayout >
     );
 };
