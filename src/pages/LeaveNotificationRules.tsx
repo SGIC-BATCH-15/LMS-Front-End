@@ -12,6 +12,7 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
+import { useRolePrivilege } from '@/context/RolePrivilegeContext';
 import { Info } from 'lucide-react';
 import { getAllCompanies, CompanyResponse } from '@/components/services/companyService';
 import { roleService, Role } from '@/components/services/roleService';
@@ -29,6 +30,7 @@ interface NotificationConfig {
 }
 
 export const LeaveNotificationRules: React.FC = () => {
+    const { hasRolePrivilege } = useRolePrivilege();
     const { toast } = useToast();
 
     const [companies, setCompanies] = useState<CompanyResponse[]>([]);
@@ -328,12 +330,14 @@ export const LeaveNotificationRules: React.FC = () => {
 
                     {/* Save Button */}
                     <div className="border-t border-gray-200 p-6 flex justify-center">
-                        <Button
-                            onClick={handleSaveConfiguration}
-                            className="bg-blue-600 hover:bg-blue-700 px-8"
-                        >
-                            Save Configuration
-                        </Button>
+                        {hasRolePrivilege('MANAGE_LEAVE_NOTIFICATION_RULES', 'canWrite') && (
+                            <Button
+                                onClick={handleSaveConfiguration}
+                                className="bg-blue-600 hover:bg-blue-700 px-8"
+                            >
+                                Save Configuration
+                            </Button>
+                        )}
                     </div>
                 </div>
             </div>

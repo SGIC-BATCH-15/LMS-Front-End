@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { DashboardLayout } from '@/components/templates/DashboardLayout/DashboardLayout';
 import { ApprovalTimeline } from '@/components/organisms/ApprovalTimeline/ApprovalTimeline';
@@ -9,15 +9,44 @@ import { UserCard } from '@/components/molecules/UserCard/UserCard';
 import { users } from '@/data/mockData';
 import { useLeaveRequests } from '@/context/LeaveRequestContext';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Calendar, Clock, Mail, Users } from 'lucide-react';
+import { ArrowLeft, Calendar, Clock, Mail, Users, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
+import { getLeaveRequestById, LeaveRequestItem } from '@/components/services/leaveRequestService';
+import { BackendEmployee } from '@/types';
 
 export const LeaveDetail: React.FC = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { leaveRequests } = useLeaveRequests();
 
+  const [backendRequest, setBackendRequest] = useState<LeaveRequestItem | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [toRecipient, setToRecipient] = useState<BackendEmployee | null>(null);
+  const [ccRecipients, setCcRecipients] = useState<BackendEmployee[]>([]);
+
   const request = leaveRequests.find(r => r.id === id);
+
+  // Fetch backend data for To and Cc recipients
+  useEffect(() => {
+    const fetchRequestDetails = async () => {
+      if (!id) return;
+      
+      try {
+        setLoading(true);
+        const requestId = parseInt(id);
+        const response = await getLeaveRequestById(requestId);
+        setBackendRequest(response);
+        setToRecipient(response.toEmail);
+        setCcRecipients(response.ccEmails || []);
+      } catch (error) {
+        console.error('Error fetching leave request details:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchRequestDetails();
+  }, [id]);
 
   if (!request) {
     return (
@@ -29,9 +58,6 @@ export const LeaveDetail: React.FC = () => {
       </DashboardLayout>
     );
   }
-
-  const toUsers = users.filter(u => request.toRecipients.includes(u.id));
-  const ccUsers = users.filter(u => request.ccRecipients.includes(u.id));
 
   return (
     <DashboardLayout title="Leave Request Details" showApplyButton={false}>
@@ -99,9 +125,22 @@ export const LeaveDetail: React.FC = () => {
               <h3 className="font-semibold text-foreground">To</h3>
             </div>
             <div className="space-y-2">
-              {toUsers.map(user => (
-                <UserCard key={user.id} user={user} compact />
-              ))}
+              {loading ? (
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span className="text-sm">Loading...</span>
+                </div>
+              ) : toRecipient ? (
+                <div className="flex items-center gap-3 p-2 rounded-lg bg-muted/50">
+                  <UserAvatar name={`${toRecipient.firstName} ${toRecipient.lastName}`} size="sm" />
+                  <div>
+                    <p className="font-medium text-sm">{`${toRecipient.firstName} ${toRecipient.lastName}`}</p>
+                    <p className="text-xs text-muted-foreground">{toRecipient.email}</p>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">No recipient found</p>
+              )}
             </div>
           </div>
 
@@ -111,9 +150,20 @@ export const LeaveDetail: React.FC = () => {
               <h3 className="font-semibold text-foreground">Cc</h3>
             </div>
             <div className="space-y-2">
-              {ccUsers.length > 0 ? (
-                ccUsers.map(user => (
-                  <UserCard key={user.id} user={user} compact />
+              {loading ? (
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span className="text-sm">Loading...</span>
+                </div>
+              ) : ccRecipients.length > 0 ? (
+                ccRecipients.map(cc => (
+                  <div key={cc.id} className="flex items-center gap-3 p-2 rounded-lg bg-muted/50">
+                    <UserAvatar name={`${cc.firstName} ${cc.lastName}`} size="sm" />
+                    <div>
+                      <p className="font-medium text-sm">{`${cc.firstName} ${cc.lastName}`}</p>
+                      <p className="text-xs text-muted-foreground">{cc.email}</p>
+                    </div>
+                  </div>
                 ))
               ) : (
                 <p className="text-sm text-muted-foreground">No CC recipients</p>

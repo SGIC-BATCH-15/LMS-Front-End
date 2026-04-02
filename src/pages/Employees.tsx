@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useRolePrivilege } from '@/context/RolePrivilegeContext';
 import { DashboardLayout } from '@/components/templates/DashboardLayout/DashboardLayout';
 import { UserAvatar } from '@/components/atoms/Avatar/UserAvatar';
 
@@ -17,6 +18,16 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Search, Plus, Pencil, Trash2, Building } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -32,6 +43,7 @@ import {
 } from "@/components/ui/pagination";
 
 export const Employees: React.FC = () => {
+  const { hasRolePrivilege } = useRolePrivilege();
   const [users, setUsers] = useState<User[]>([]);
   const [companies, setCompanies] = useState<Company[]>([]);
   const [departments, setDepartments] = useState<APIDepartment[]>([]);
@@ -43,6 +55,8 @@ export const Employees: React.FC = () => {
   const [loadingDesignations, setLoadingDesignations] = useState(false);
   const [savingEmployee, setSavingEmployee] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [employeeToDelete, setEmployeeToDelete] = useState<string | null>(null);
 
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCompany, setFilterCompany] = useState(''); // Default to empty or first company
@@ -63,6 +77,8 @@ export const Employees: React.FC = () => {
     joinDate: '',
     previousExperience: 0,
   });
+
+  const [originalFormData, setOriginalFormData] = useState<typeof formData | null>(null);
 
   // Derived state for department filtering in dialog
   const dialogDepartments = departments;
@@ -118,7 +134,6 @@ export const Employees: React.FC = () => {
     const fetchCompanies = async () => {
       console.log('🚀 Starting to fetch companies...');
 
-      // Check if user has authentication token
       const token = localStorage.getItem('authToken');
       if (!token || token === 'undefined' || token === 'null') {
         console.warn('🔒 No valid authentication token found');
@@ -127,36 +142,51 @@ export const Employees: React.FC = () => {
         return;
       }
 
-      console.log('🔑 Authentication token found, proceeding with API call...');
       setLoadingCompanies(true);
       try {
-        console.log('📞 Calling companyService.getAllCompanies()...');
-        const companiesData = await companyService.getAllCompanies();
-        console.log('✅ Received companies data:', companiesData);
-
-        // Ensure we have a valid array
-        if (Array.isArray(companiesData)) {
-          console.log(`🎉 Setting ${companiesData.length} companies to state`);
-          // Show all companies, do not filter by ID 1
-          setCompanies(companiesData);
-
-          // Set default filter to first company if available
-          if (companiesData.length > 0 && filterCompany === '') {
-            setFilterCompany(companiesData[0].id.toString());
-          }
-
-          toast.success(`Successfully loaded ${companiesData.length} companies from backend`);
-        } else {
-          console.warn('⚠️ API returned non-array data:', companiesData);
-          toast.error('Invalid data format received from backend.');
-          setCompanies([]);
+        // 1. Try to get logged-in user's company profile directly
+        console.log('🔍 Attempting to fetch my company profile first...');
+        let myCompany = null;
+        try {
+          myCompany = await employeeService.getMyCompanyProfile();
+        } catch (e) {
+          console.warn('Failed to fetch my company profile:', e);
         }
+
+        if (myCompany && (myCompany.id !== undefined && myCompany.id !== null)) {
+          console.log('✅ Found my company profile:', myCompany);
+
+          // Restrict to this single company
+          setCompanies([myCompany]);
+          setFilterCompany(myCompany.id.toString());
+          console.log(`🔒 Restricted view to company: ${myCompany.name} (ID: ${myCompany.id})`);
+          toast.success(`Loaded your company: ${myCompany.name}`);
+
+        } else {
+          // 2. Fallback: Fetch all companies (Super Admin or Unassigned)
+          console.log('� No specific company profile or ID found. Fetching all companies...');
+          const companiesData = await companyService.getAllCompanies();
+
+          if (Array.isArray(companiesData)) {
+            console.log(`🎉 Received ${companiesData.length} companies from backend`);
+            setCompanies(companiesData);
+
+            if (companiesData.length > 0 && filterCompany === '') {
+              setFilterCompany(companiesData[0].id.toString());
+            }
+            toast.success(`Loaded ${companiesData.length} companies`);
+          } else {
+            console.warn('⚠️ API returned non-array data:', companiesData);
+            setCompanies([]);
+          }
+        }
+
       } catch (error) {
         console.error('❌ Failed to fetch companies:', error);
         if (error.message?.includes('Authentication')) {
           toast.error('Authentication failed. Please login again.');
         } else {
-          toast.error('Failed to load companies from backend. Check console for details.');
+          toast.error('Failed to load companies.');
         }
         setCompanies([]);
       } finally {
@@ -217,7 +247,14 @@ export const Employees: React.FC = () => {
           };
         });
 
-        setUsers(mappedEmployees);
+        // Sort employees by ID in descending order (newest first)
+        const sortedEmployees = mappedEmployees.sort((a, b) => {
+          const idA = parseInt(a.id) || 0;
+          const idB = parseInt(b.id) || 0;
+          return idB - idA; // Descending order (highest ID first)
+        });
+
+        setUsers(sortedEmployees);
         toast.success(`Loaded ${mappedEmployees.length} employees for selected company`);
       } else if (employeesData.length === 0) {
         setUsers([]);
@@ -344,6 +381,23 @@ export const Employees: React.FC = () => {
     return Math.max(0, differenceInYears(now, joinDate));
   };
 
+  // Check if form data has changed from original
+  const hasFormChanges = (): boolean => {
+    if (!editingUser || !originalFormData) return true; // Always allow for new employees
+
+    return (
+      formData.firstName.trim() !== originalFormData.firstName.trim() ||
+      formData.lastName.trim() !== originalFormData.lastName.trim() ||
+      formData.email.trim() !== originalFormData.email.trim() ||
+      formData.companyId !== originalFormData.companyId ||
+      formData.departmentId !== originalFormData.departmentId ||
+      formData.role !== originalFormData.role ||
+      formData.designation !== originalFormData.designation ||
+      formData.joinDate !== originalFormData.joinDate ||
+      formData.previousExperience !== originalFormData.previousExperience
+    );
+  };
+
   const handleOpenDialog = (user?: User) => {
     if (user) {
       setEditingUser(user);
@@ -359,7 +413,7 @@ export const Employees: React.FC = () => {
       console.log('🔍 Role ID:', roleId, 'Type:', typeof roleId);
       console.log('🔍 Department ID:', user.departmentId, 'Type:', typeof user.departmentId);
 
-      setFormData({
+      const initialFormData = {
         firstName: user.firstName || user.name.split(' ')[0], // Fallback if firstName missing
         lastName: user.lastName || user.name.split(' ').slice(1).join(' '), // Fallback
         email: user.email,
@@ -370,7 +424,10 @@ export const Employees: React.FC = () => {
         designation: user.designation || '',
         joinDate: user.joinDate || new Date().toISOString().split('T')[0], // Fallback
         previousExperience: user.previousExperience || 0,
-      });
+      };
+
+      setFormData(initialFormData);
+      setOriginalFormData(initialFormData); // Store original data for comparison
 
       console.log('✅ Form data set:', {
         companyId: companyId.toString(),
@@ -384,37 +441,74 @@ export const Employees: React.FC = () => {
       }
     } else {
       setEditingUser(null);
+      setOriginalFormData(null); // Clear original data for new employee
+
+      // Determine if restricted to one company (from the filtered companies list)
+      // If companies state has only 1 item, it might be the restricted one.
+      // But safer to re-check or rely on current FilterCompany if set
+
+      let preSelectedCompanyId = '';
+      if (companies.length === 1) {
+        preSelectedCompanyId = companies[0].id.toString();
+      }
+
       setFormData({
         firstName: '',
         lastName: '',
         email: '',
 
-        companyId: '', // Reset
+        companyId: preSelectedCompanyId || '', // Auto-select my company
         departmentId: '',
         role: '', // Reset to empty string for role ID
         designation: '',
         joinDate: new Date().toISOString().split('T')[0], // Default to today
         previousExperience: 0,
       });
-      // Clear departments for new user
-      setDepartments([]);
+      // Clear departments for new user unless company is pre-selected
+      if (preSelectedCompanyId) {
+        fetchDepartmentsByCompany(preSelectedCompanyId);
+      } else {
+        setDepartments([]);
+      }
     }
 
     setIsDialogOpen(true);
   };
 
   const handleSave = async () => {
-    // Basic validation
-    if (!formData.firstName || !formData.lastName || !formData.email || !formData.departmentId || !formData.role || !formData.joinDate) {
-      console.log('❌ Validation failed - missing required fields:', {
-        firstName: !!formData.firstName,
-        lastName: !!formData.lastName,
-        email: !!formData.email,
-        departmentId: !!formData.departmentId,
-        role: !!formData.role,
-        joinDate: !!formData.joinDate
-      });
-      toast.error('Please fill in all required fields');
+    // Field-specific validation
+    const missingFields: string[] = [];
+
+    if (!formData.firstName || formData.firstName.trim() === '') {
+      missingFields.push('First Name');
+    }
+    if (!formData.lastName || formData.lastName.trim() === '') {
+      missingFields.push('Last Name');
+    }
+    if (!formData.email || formData.email.trim() === '') {
+      missingFields.push('Email');
+    }
+    if (!formData.companyId || formData.companyId === '') {
+      missingFields.push('Company');
+    }
+    if (!formData.departmentId || formData.departmentId === '') {
+      missingFields.push('Department');
+    }
+    if (!formData.role || formData.role === '') {
+      missingFields.push('Role');
+    }
+    if (!formData.joinDate || formData.joinDate === '') {
+      missingFields.push('Join Date');
+    }
+    if (!formData.designation || formData.designation === '') {
+      missingFields.push('Designation');
+    }
+
+    if (missingFields.length > 0) {
+      const errorMessage = missingFields.length === 1
+        ? `Please fill in the required field: ${missingFields[0]}`
+        : `Please fill in the required fields: ${missingFields.join(', ')}`;
+      toast.error(errorMessage);
       return;
     }
 
@@ -494,7 +588,7 @@ export const Employees: React.FC = () => {
 
         const designationId = parseInt(formData.designation);
         if (isNaN(designationId) || designationId <= 0) {
-          throw new Error('Designation ID is required and must be a valid number');
+          throw new Error('Please select a valid designation');
         }
 
         const employeeData: AddEmployeeRequest = {
@@ -534,24 +628,33 @@ export const Employees: React.FC = () => {
     setIsDialogOpen(false);
   };
 
-  const handleDelete = async (userId: string) => {
-    if (window.confirm('Are you sure you want to delete this employee? This action cannot be undone.')) {
-      console.log('🗑️ Starting to delete employee from backend database...');
-      try {
-        await employeeService.deleteEmployee(userId);
+  const handleDeleteClick = (userId: string) => {
+    setEmployeeToDelete(userId);
+    setDeleteDialogOpen(true);
+  };
 
-        console.log('✅ Employee deleted successfully from database');
-        toast.success('Employee deleted successfully!');
+  const handleDeleteConfirm = async () => {
+    if (!employeeToDelete) return;
 
-        // Remove from local state
-        setUsers(users.filter(u => u.id !== userId));
-        setBalances(prev => prev.filter(b => b.userId !== userId));
+    console.log('🗑️ Starting to delete employee from backend database...');
+    try {
+      await employeeService.deleteEmployee(employeeToDelete);
 
-      } catch (error) {
-        console.error('❌ Failed to delete employee from database:', error);
-        console.error('❌ Error message:', error.message);
-        toast.error(`Failed to delete employee. Please try again.`);
-      }
+      console.log('✅ Employee deleted successfully from database');
+      toast.success('Employee deleted successfully!');
+
+      // Remove from local state
+      setUsers(users.filter(u => u.id !== employeeToDelete));
+      setBalances(prev => prev.filter(b => b.userId !== employeeToDelete));
+
+      setDeleteDialogOpen(false);
+      setEmployeeToDelete(null);
+    } catch (error) {
+      console.error('❌ Failed to delete employee from backend database:', error);
+      console.error('❌ Error message:', error.message);
+      toast.error(`Failed to delete employee. Please try again.`);
+      setDeleteDialogOpen(false);
+      setEmployeeToDelete(null);
     }
   };
 
@@ -638,197 +741,199 @@ export const Employees: React.FC = () => {
             </Select>
           </div>
           <div className="flex gap-2">
-            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-              <DialogTrigger asChild>
-                <Button className="gap-2" onClick={() => handleOpenDialog()}>
-                  <Plus className="w-4 h-4" />
-                  Add Employee
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="sm:max-w-[600px]">
-                <DialogHeader>
-                  <DialogTitle>{editingUser ? 'Edit Employee' : 'Add New Employee'}</DialogTitle>
-                </DialogHeader>
-                <div className="space-y-4 py-4">
+            {hasRolePrivilege('MANAGE_EMPLOYEES', 'canWrite') && (
+              <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button className="gap-2" onClick={() => handleOpenDialog()}>
+                    <Plus className="w-4 h-4" />
+                    Add Employee
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-[600px]">
+                  <DialogHeader>
+                    <DialogTitle>{editingUser ? 'Edit Employee' : 'Add New Employee'}</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-4 py-4">
 
-                  {/* Names */}
-                  <div className="grid grid-cols-2 gap-4">
+                    {/* Names */}
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="firstName">First Name *</Label>
+                        <Input
+                          id="firstName"
+                          placeholder="John"
+                          value={formData.firstName}
+                          onChange={e => setFormData({ ...formData, firstName: e.target.value })}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="lastName">Last Name *</Label>
+                        <Input
+                          id="lastName"
+                          placeholder="Doe"
+                          value={formData.lastName}
+                          onChange={e => setFormData({ ...formData, lastName: e.target.value })}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Email */}
                     <div className="space-y-2">
-                      <Label htmlFor="firstName">First Name *</Label>
+                      <Label htmlFor="email">Email *</Label>
                       <Input
-                        id="firstName"
-                        placeholder="John"
-                        value={formData.firstName}
-                        onChange={e => setFormData({ ...formData, firstName: e.target.value })}
+                        id="email"
+                        type="email"
+                        placeholder="john@company.com"
+                        value={formData.email}
+                        onChange={e => setFormData({ ...formData, email: e.target.value })}
                       />
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="lastName">Last Name *</Label>
-                      <Input
-                        id="lastName"
-                        placeholder="Doe"
-                        value={formData.lastName}
-                        onChange={e => setFormData({ ...formData, lastName: e.target.value })}
-                      />
-                    </div>
-                  </div>
-
-                  {/* Email */}
-                  <div className="space-y-2">
-                    <Label htmlFor="email">Email *</Label>
-                    <Input
-                      id="email"
-                      type="email"
-                      placeholder="john@company.com"
-                      value={formData.email}
-                      onChange={e => setFormData({ ...formData, email: e.target.value })}
-                    />
-                  </div>
 
 
 
-                  {/* Company & Department */}
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="company">Company *</Label>
-                      <Select
-                        value={formData.companyId}
-                        onValueChange={(value) => {
-                          setFormData({ ...formData, companyId: value, departmentId: '' });
-                          fetchDepartmentsByCompany(value);
-                        }}
-                        disabled={loadingCompanies}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder={loadingCompanies ? "Loading companies..." : "Select Company"} />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {(companies || []).map(comp => (
-                            <SelectItem key={comp.id} value={comp.id.toString()}>
-                              {comp.companyName || comp.name || 'Unnamed Company'}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="department">Department *</Label>
-                      <Select
-                        value={formData.departmentId}
-                        onValueChange={v => setFormData({ ...formData, departmentId: v })}
-                        disabled={!formData.companyId || loadingDepartments}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder={
-                            !formData.companyId ? "Select Company first" :
-                              loadingDepartments ? "Loading departments..." :
-                                "Select Department"
-                          } />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {departments.length === 0 && formData.companyId && !loadingDepartments ? (
-                            <SelectItem value="no-departments" disabled className="text-muted-foreground italic">
-                              No departments exist
-                            </SelectItem>
-                          ) : (
-                            dialogDepartments.map(dept => (
-                              <SelectItem key={dept.id} value={dept.id.toString()}>
-                                {dept.name || 'Unnamed Department'}
+                    {/* Company & Department */}
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="company">Company *</Label>
+                        <Select
+                          value={formData.companyId}
+                          onValueChange={(value) => {
+                            setFormData({ ...formData, companyId: value, departmentId: '' });
+                            fetchDepartmentsByCompany(value);
+                          }}
+                          disabled={loadingCompanies}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder={loadingCompanies ? "Loading companies..." : "Select Company"} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {(companies || []).map(comp => (
+                              <SelectItem key={comp.id} value={comp.id.toString()}>
+                                {comp.companyName || comp.name || 'Unnamed Company'}
                               </SelectItem>
-                            ))
-                          )}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-
-                  {/* Role & Designation */}
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="role">Role *</Label>
-                      <Select
-                        value={formData.role}
-                        onValueChange={v => setFormData({ ...formData, role: v })} // Remove UserRole casting
-                        disabled={loadingRoles}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder={loadingRoles ? "Loading roles..." : "Select Role"} />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {roles.length === 0 && !loadingRoles ? (
-                            <SelectItem value="no-roles" disabled className="text-muted-foreground italic">
-                              No roles available
-                            </SelectItem>
-                          ) : (
-                            roles.map(role => (
-                              <SelectItem key={role.id} value={role.id.toString()}>{role.name}</SelectItem>
-                            ))
-                          )}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="designation">Designation</Label>
-                      <Select
-                        value={formData.designation}
-                        onValueChange={v => setFormData({ ...formData, designation: v })}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select Designation" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {designations
-                            .filter(d => !formData.departmentId || d.departmentId?.toString() === formData.departmentId)
-                            .map(des => (
-                              <SelectItem key={des.id} value={des.id.toString()}>{des.name}</SelectItem>
                             ))}
-                        </SelectContent>
-                      </Select>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="department">Department *</Label>
+                        <Select
+                          value={formData.departmentId}
+                          onValueChange={v => setFormData({ ...formData, departmentId: v })}
+                          disabled={!formData.companyId || loadingDepartments}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder={
+                              !formData.companyId ? "Select Company first" :
+                                loadingDepartments ? "Loading departments..." :
+                                  "Select Department"
+                            } />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {departments.length === 0 && formData.companyId && !loadingDepartments ? (
+                              <SelectItem value="no-departments" disabled className="text-muted-foreground italic">
+                                No departments exist
+                              </SelectItem>
+                            ) : (
+                              dialogDepartments.map(dept => (
+                                <SelectItem key={dept.id} value={dept.id.toString()}>
+                                  {dept.name || 'Unnamed Department'}
+                                </SelectItem>
+                              ))
+                            )}
+                          </SelectContent>
+                        </Select>
+                      </div>
                     </div>
-                  </div>
 
-                  {/* Dates & Experience */}
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="joinDate">Join Date *</Label>
-                      <Input
-                        id="joinDate"
-                        type="date"
-                        value={formData.joinDate}
-                        onChange={e => setFormData({ ...formData, joinDate: e.target.value })}
-                      />
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Current: {calculateCurrentExperience(formData.joinDate)} years
-                      </p>
+                    {/* Role & Designation */}
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="role">Role *</Label>
+                        <Select
+                          value={formData.role}
+                          onValueChange={v => setFormData({ ...formData, role: v })} // Remove UserRole casting
+                          disabled={loadingRoles}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder={loadingRoles ? "Loading roles..." : "Select Role"} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {roles.length === 0 && !loadingRoles ? (
+                              <SelectItem value="no-roles" disabled className="text-muted-foreground italic">
+                                No roles available
+                              </SelectItem>
+                            ) : (
+                              roles.map(role => (
+                                <SelectItem key={role.id} value={role.id.toString()}>{role.name}</SelectItem>
+                              ))
+                            )}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="designation">Designation *</Label>
+                        <Select
+                          value={formData.designation}
+                          onValueChange={v => setFormData({ ...formData, designation: v })}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select Designation" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {designations
+                              .filter(d => !formData.departmentId || d.departmentId?.toString() === formData.departmentId)
+                              .map(des => (
+                                <SelectItem key={des.id} value={des.id.toString()}>{des.name}</SelectItem>
+                              ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="prevExp">Previous Exp (Years)</Label>
-                      <Input
-                        id="prevExp"
-                        type="number"
-                        min="0"
-                        value={formData.previousExperience}
-                        onChange={e => setFormData({ ...formData, previousExperience: parseInt(e.target.value) || 0 })}
-                      />
-                    </div>
-                  </div>
 
-                  <div className="flex justify-end gap-2 mt-6">
-                    <Button variant="outline" onClick={() => setIsDialogOpen(false)} disabled={savingEmployee}>Cancel</Button>
-                    <Button onClick={handleSave} disabled={savingEmployee}>
-                      {savingEmployee ? (
-                        <>
-                          <span className="mr-2">Saving...</span>
-                          <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
-                        </>
-                      ) : (
-                        `${editingUser ? 'Update' : 'Create'} Employee`
-                      )}
-                    </Button>
+                    {/* Dates & Experience */}
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="joinDate">Join Date *</Label>
+                        <Input
+                          id="joinDate"
+                          type="date"
+                          value={formData.joinDate}
+                          onChange={e => setFormData({ ...formData, joinDate: e.target.value })}
+                        />
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Current: {calculateCurrentExperience(formData.joinDate)} years
+                        </p>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="prevExp">Previous Exp (Years)</Label>
+                        <Input
+                          id="prevExp"
+                          type="number"
+                          min="0"
+                          value={formData.previousExperience}
+                          onChange={e => setFormData({ ...formData, previousExperience: parseInt(e.target.value) || 0 })}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex justify-end gap-2 mt-6">
+                      <Button variant="outline" onClick={() => setIsDialogOpen(false)} disabled={savingEmployee}>Cancel</Button>
+                      <Button onClick={handleSave} disabled={savingEmployee || (editingUser && !hasFormChanges())}>
+                        {savingEmployee ? (
+                          <>
+                            <span className="mr-2">Saving...</span>
+                            <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                          </>
+                        ) : (
+                          `${editingUser ? 'Update' : 'Create'} Employee`
+                        )}
+                      </Button>
+                    </div>
                   </div>
-                </div>
-              </DialogContent>
-            </Dialog>
+                </DialogContent>
+              </Dialog>
+            )}
           </div>
         </div>
 
@@ -891,12 +996,16 @@ export const Employees: React.FC = () => {
                     </TableCell>
                     <TableCell className="text-center">
                       <div className="flex justify-center gap-2">
-                        <Button variant="ghost" size="sm" onClick={() => handleOpenDialog(user)} title="Edit">
-                          <Pencil className="w-4 h-4" />
-                        </Button>
-                        <Button variant="ghost" size="icon" className="text-destructive" onClick={() => handleDelete(user.id)}>
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
+                        {hasRolePrivilege('MANAGE_EMPLOYEES', 'canUpdate') && (
+                          <Button variant="ghost" size="sm" onClick={() => handleOpenDialog(user)} title="Edit">
+                            <Pencil className="w-4 h-4" />
+                          </Button>
+                        )}
+                        {hasRolePrivilege('MANAGE_EMPLOYEES', 'canDelete') && (
+                          <Button variant="ghost" size="icon" className="text-destructive" onClick={() => handleDeleteClick(user.id)} title="Delete">
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        )}
                       </div>
                     </TableCell>
                   </TableRow>
@@ -906,38 +1015,68 @@ export const Employees: React.FC = () => {
           </Table>
         </div>
 
-        {totalPages > 1 && (
-          <Pagination>
-            <PaginationContent>
-              <PaginationItem>
-                <PaginationPrevious
-                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                  className={currentPage === 1 ? 'pointer-events-none opacity-50' : 'cursor-pointer'}
-                />
-              </PaginationItem>
+        {filteredUsers.length > 0 && (
+          <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <span className="text-sm text-muted-foreground">
+              Total Employees: {filteredUsers.length}
+            </span>
 
-              {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-                <PaginationItem key={page}>
-                  <PaginationLink
-                    isActive={page === currentPage}
-                    onClick={() => setCurrentPage(page)}
-                    className="cursor-pointer"
-                  >
-                    {page}
-                  </PaginationLink>
-                </PaginationItem>
-              ))}
+            <div className="flex w-full justify-end sm:w-auto items-center gap-2">
+              <button
+                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+                className={`px-4 py-1.5 rounded-md text-white font-medium transition-colors ${currentPage === 1
+                  ? 'bg-blue-300 cursor-not-allowed opacity-50'
+                  : 'bg-[#8ab8ff] hover:bg-[#6996e0]'
+                  }`}
+              >
+                Prev
+              </button>
 
-              <PaginationItem>
-                <PaginationNext
-                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                  className={currentPage === totalPages ? 'pointer-events-none opacity-50' : 'cursor-pointer'}
-                />
-              </PaginationItem>
-            </PaginationContent>
-          </Pagination>
+              <span className="text-sm font-medium text-gray-700 px-2">
+                Page {totalPages === 0 ? 0 : currentPage} of {Math.max(totalPages, 1)}
+              </span>
+
+              <button
+                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages || totalPages === 0}
+                className={`px-4 py-1.5 rounded-md text-white font-medium transition-colors ${currentPage === totalPages || totalPages === 0
+                  ? 'bg-blue-300 cursor-not-allowed opacity-50'
+                  : 'bg-[#8ab8ff] hover:bg-[#6996e0]'
+                  }`}
+              >
+                Next
+              </button>
+            </div>
+          </div>
         )}
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Employee</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this employee? This action cannot be undone and will permanently remove the employee from the system.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => {
+              setDeleteDialogOpen(false);
+              setEmployeeToDelete(null);
+            }}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteConfirm}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete Employee
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </DashboardLayout>
   );
 };

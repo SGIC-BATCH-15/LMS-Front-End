@@ -12,11 +12,13 @@ import { Department } from '@/types';
 import { useToast } from '@/hooks/use-toast';
 import { departmentService, Company } from '@/components/services/departmentService';
 import { useAuth } from '@/context/AuthContext';
+import { useRolePrivilege } from '@/context/RolePrivilegeContext';
 
 
 
 export const Departments: React.FC = () => {
     const { currentUser } = useAuth();
+    const { hasRolePrivilege } = useRolePrivilege();
     const [departments, setDepartments] = useState<Department[]>([]);
     const [companies, setCompanies] = useState<Company[]>([]);
     const [searchTerm, setSearchTerm] = useState('');
@@ -26,6 +28,24 @@ export const Departments: React.FC = () => {
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 5;
     const { toast } = useToast();
+
+    // Form state helpers: track if form is valid and if any changes were made (dirty)
+    const isValid = Boolean(formData.name && formData.companyId);
+    const isDirty = editingDept
+        ? (formData.name !== editingDept.name || (formData.companyId || '') !== (editingDept.companyId || ''))
+        : (formData.name !== '' || formData.companyId !== '');
+
+    // Reset form when dialog closes
+    useEffect(() => {
+        if (!isDialogOpen) {
+            setEditingDept(null);
+            setFormData({ name: '', companyId: '' });
+        }
+    }, [isDialogOpen]);
+
+    // Deletion confirmation dialog state
+    const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+    const [deptToDelete, setDeptToDelete] = useState<{ id: string; name?: string } | null>(null);
 
     // Fetch Companies
     const fetchCompanies = async () => {
@@ -154,38 +174,64 @@ export const Departments: React.FC = () => {
             // Refresh Data
             const comps = await fetchCompanies(); // Re-fetch companies in case new added (unlikely here but good practice)
             await fetchDepartments(comps);
-        } catch (error) {
+        } catch (error: any) {
+            console.error("Failed to save department", error);
+
+            let errorMessage = 'Failed to save department';
+            if (error.response && error.response.data) {
+                const responseData = error.response.data;
+
+                if (responseData.data && Array.isArray(responseData.data) && responseData.data.length > 0) {
+                    const firstError = responseData.data[0];
+                    if (firstError.message) {
+                        errorMessage = firstError.message;
+                    }
+                } else if (responseData.statusMessage) {
+                    errorMessage = responseData.statusMessage;
+                } else if (responseData.message) {
+                    errorMessage = responseData.message;
+                }
+            }
+
             toast({
                 title: 'Error',
-                description: 'Failed to save department',
+                description: errorMessage,
                 variant: 'destructive',
             });
         }
     };
 
-    const handleDelete = async (id: string) => {
-        if (window.confirm('Are you sure you want to delete this department? This action cannot be undone.')) {
-            try {
-                await departmentService.deleteDepartment(id);
-                toast({
-                    title: 'Success',
-                    description: 'Department deleted successfully',
-                });
-                // Refresh
-                const comps = companies.length > 0 ? companies : await fetchCompanies();
-                await fetchDepartments(comps);
-            } catch (error) {
-                toast({
-                    title: 'Error',
-                    description: 'Failed to delete department. Please try again.',
-                    variant: 'destructive',
-                });
-            }
+    // Open the confirmation dialog for a given department
+    const requestDelete = (id: string, name?: string) => {
+        setDeptToDelete({ id, name });
+        setIsDeleteDialogOpen(true);
+    };
+
+    // Called when the user confirms deletion
+    const confirmDelete = async () => {
+        if (!deptToDelete) return;
+        try {
+            await departmentService.deleteDepartment(deptToDelete.id);
+            toast({
+                title: 'Success',
+                description: 'Department deleted successfully',
+            });
+            setIsDeleteDialogOpen(false);
+            setDeptToDelete(null);
+            // Refresh
+            const comps = companies.length > 0 ? companies : await fetchCompanies();
+            await fetchDepartments(comps);
+        } catch (error) {
+            toast({
+                title: 'Error',
+                description: 'Failed to delete department. Please try again.',
+                variant: 'destructive',
+            });
         }
     };
 
     const getCompanyName = (id: string) => {
-        const comp = companies.find(c => c.id.toString() === id.toString());
+        const comp = companies.find(c => (c?.id ?? '').toString() === (id ?? '').toString());
         return comp ? comp.name : 'Unknown';
     };
 
@@ -202,55 +248,80 @@ export const Departments: React.FC = () => {
                             className="pl-9"
                         />
                     </div>
-                    <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-                        <DialogTrigger asChild>
-                            <Button onClick={() => handleOpenDialog()}>
-                                <Plus className="w-4 h-4 mr-2" />
-                                Add Department
-                            </Button>
-                        </DialogTrigger>
+                    {hasRolePrivilege('MANAGE_DEPARTMENTS', 'canWrite') && (
+                        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+                            <DialogTrigger asChild>
+                                <Button onClick={() => handleOpenDialog()}>
+                                    <Plus className="w-4 h-4 mr-2" />
+                                    Add Department
+                                </Button>
+                            </DialogTrigger>
+                            <DialogContent>
+                                <DialogHeader>
+                                    <DialogTitle>{editingDept ? 'Edit Department' : 'Add New Department'}</DialogTitle>
+                                    <DialogDescription>
+                                        {editingDept ? 'Update department information' : 'Create a new department'}
+                                    </DialogDescription>
+                                </DialogHeader>
+                                <div className="space-y-4 py-4">
+                                    <div className="space-y-2">
+                                        <Label htmlFor="company">Company</Label>
+                                        <Select
+                                            value={formData.companyId}
+                                            onValueChange={(value) => setFormData({ ...formData, companyId: value })}
+                                        >
+                                            <SelectTrigger>
+                                                <SelectValue placeholder="Select a company" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {companies.map((company) => (
+                                                    <SelectItem key={company.id} value={company.id.toString()}>
+                                                        {company.name}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label htmlFor="name">Department Name</Label>
+                                        <Input
+                                            id="name"
+                                            value={formData.name}
+                                            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                                            placeholder="e.g., Engineering"
+                                        />
+                                    </div>
+                                </div>
+                                <DialogFooter>
+                                    <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
+                                        Cancel
+                                    </Button>
+                                    <Button
+                                        onClick={handleSave}
+                                        disabled={!isValid || (editingDept ? !isDirty : false)}
+                                    >
+                                        {editingDept ? 'Update' : 'Create'}
+                                    </Button>
+                                </DialogFooter>
+                            </DialogContent>
+                        </Dialog>
+                    )}
+
+                    {/* Deletion confirmation dialog */}
+                    <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
                         <DialogContent>
                             <DialogHeader>
-                                <DialogTitle>{editingDept ? 'Edit Department' : 'Add New Department'}</DialogTitle>
+                                <DialogTitle>Confirm Department Deletion</DialogTitle>
                                 <DialogDescription>
-                                    {editingDept ? 'Update department information' : 'Create a new department'}
+                                    Are you sure you want to permanently delete this department? This action cannot be undone. Please confirm to proceed, or click Cancel to keep it.
                                 </DialogDescription>
                             </DialogHeader>
-                            <div className="space-y-4 py-4">
-                                <div className="space-y-2">
-                                    <Label htmlFor="company">Company</Label>
-                                    <Select
-                                        value={formData.companyId}
-                                        onValueChange={(value) => setFormData({ ...formData, companyId: value })}
-                                    >
-                                        <SelectTrigger>
-                                            <SelectValue placeholder="Select a company" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {companies.map((company) => (
-                                                <SelectItem key={company.id} value={company.id.toString()}>
-                                                    {company.name}
-                                                </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-                                <div className="space-y-2">
-                                    <Label htmlFor="name">Department Name</Label>
-                                    <Input
-                                        id="name"
-                                        value={formData.name}
-                                        onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                                        placeholder="e.g., Engineering"
-                                    />
-                                </div>
-                            </div>
                             <DialogFooter>
-                                <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
+                                <Button variant="outline" onClick={() => { setIsDeleteDialogOpen(false); setDeptToDelete(null); }}>
                                     Cancel
                                 </Button>
-                                <Button onClick={handleSave}>
-                                    {editingDept ? 'Update' : 'Create'}
+                                <Button onClick={confirmDelete} className="bg-red-600 hover:bg-red-700">
+                                    Confirm
                                 </Button>
                             </DialogFooter>
                         </DialogContent>
@@ -283,20 +354,24 @@ export const Departments: React.FC = () => {
                                         <TableCell>{getCompanyName(dept.companyId)}</TableCell>
                                         <TableCell className="text-center">
                                             <div className="flex justify-center gap-2">
-                                                <Button
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    onClick={() => handleOpenDialog(dept)}
-                                                >
-                                                    <Pencil className="w-4 h-4" />
-                                                </Button>
-                                                <Button
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    onClick={() => handleDelete(dept.id)}
-                                                >
-                                                    <Trash2 className="w-4 h-4 text-red-600" />
-                                                </Button>
+                                                {hasRolePrivilege('MANAGE_DEPARTMENTS', 'canUpdate') && (
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        onClick={() => handleOpenDialog(dept)}
+                                                    >
+                                                        <Pencil className="w-4 h-4" />
+                                                    </Button>
+                                                )}
+                                                {hasRolePrivilege('MANAGE_DEPARTMENTS', 'canDelete') && (
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        onClick={() => requestDelete(dept.id, dept.name)}
+                                                    >
+                                                        <Trash2 className="w-4 h-4 text-red-600" />
+                                                    </Button>
+                                                )}
                                             </div>
                                         </TableCell>
                                     </TableRow>
@@ -314,7 +389,6 @@ export const Departments: React.FC = () => {
                         </span>
                         <div className="flex gap-2">
                             <Button
-                                variant="outline"
                                 onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
                                 disabled={currentPage === 1}
                             >
@@ -324,7 +398,6 @@ export const Departments: React.FC = () => {
                                 Page {currentPage} of {totalPages}
                             </span>
                             <Button
-                                variant="outline"
                                 onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
                                 disabled={currentPage === totalPages}
                             >

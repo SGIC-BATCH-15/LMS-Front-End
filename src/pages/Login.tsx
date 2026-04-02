@@ -9,8 +9,8 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { LogIn, Loader2, Eye, EyeOff } from 'lucide-react';
 
 export const Login: React.FC = () => {
-    const [email, setEmail] = useState('');
-    const [password, setPassword] = useState('');
+    const [email, setEmail] = useState('admin@gmail.com');
+    const [password, setPassword] = useState('admin');
     const [showPassword, setShowPassword] = useState(false);
     const [error, setError] = useState('');
     const [emailError, setEmailError] = useState('');
@@ -69,6 +69,9 @@ export const Login: React.FC = () => {
                     <CardDescription className="text-base">
                         Leave Management System
                     </CardDescription>
+                    <p className="text-sm text-muted-foreground">
+                        Demo login: admin@gmail.com / admin
+                    </p>
                 </CardHeader>
                 <CardContent>
                     <form onSubmit={handleSubmit} className="space-y-4">

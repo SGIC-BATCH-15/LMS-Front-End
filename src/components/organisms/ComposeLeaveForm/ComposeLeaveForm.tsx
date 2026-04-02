@@ -63,7 +63,8 @@ export const ComposeLeaveForm: React.FC<ComposeLeaveFormProps> = ({ initialData,
   const [searchCc, setSearchCc] = useState('');
   // Check if it's a half day (0.5 days)
   const [isHalfDay, setIsHalfDay] = useState(initialData ? initialData.days === 0.5 : false);
-  const [halfDayType, setHalfDayType] = useState<'morning' | 'afternoon'>('morning');
+  const [halfDayType, setHalfDayType] = useState<'morning' | 'afternoon' | ''>('');
+  const [wordCountError, setWordCountError] = useState<string>('');
 
   // Fetch leave types, TO recipients, and CC recipients from backend
   useEffect(() => {
@@ -109,6 +110,16 @@ export const ComposeLeaveForm: React.FC<ComposeLeaveFormProps> = ({ initialData,
   const effectiveDays = isHalfDay ? 0.5 : days;
   const selectedBalance = userBalances.find(b => b.leaveType === leaveType);
   const availableDays = selectedBalance ? selectedBalance.total - selectedBalance.used - selectedBalance.pending : 0;
+
+  // Helper function to count words
+  const countWords = (text: string): number => {
+    const trimmedText = text.trim();
+    if (!trimmedText) return 0;
+    return trimmedText.split(/\s+/).length;
+  };
+
+  const wordCount = countWords(reason);
+  const maxWords = 500;
 
   const setToRecipientAndClose = (employee: BackendEmployee) => {
     setToRecipient(employee);
@@ -158,6 +169,14 @@ export const ComposeLeaveForm: React.FC<ComposeLeaveFormProps> = ({ initialData,
       toast.error('Please provide a reason for your leave');
       return;
     }
+    if (wordCount > maxWords) {
+      toast.error(`Reason exceeds the word limit. Please limit to ${maxWords} words.`);
+      return;
+    }
+    if (isHalfDay && !halfDayType) {
+      toast.error('Please select a half day type (Morning or Afternoon)');
+      return;
+    }
     if (effectiveDays > availableDays) {
       toast.error(`You only have ${availableDays} days available for ${leaveType} leave`);
       return;
@@ -173,7 +192,7 @@ export const ComposeLeaveForm: React.FC<ComposeLeaveFormProps> = ({ initialData,
         endDate: format(endDate, 'yyyy-MM-dd'),
         reason: reason.trim(),
         halfDay: isHalfDay,
-        halfDayType: isHalfDay ? (halfDayType === 'morning' ? 'MORNING' as const : 'AFTERNOON' as const) : null,
+        halfDayType: isHalfDay && halfDayType ? (halfDayType === 'morning' ? 'MORNING' as const : 'AFTERNOON' as const) : null,
         toEmailEmployeeId: toRecipient.id,
         ccEmailEmployeeIds: ccRecipients.map(cc => cc.id),
       };
@@ -251,6 +270,9 @@ export const ComposeLeaveForm: React.FC<ComposeLeaveFormProps> = ({ initialData,
       !ccRecipients.find(r => r.id === emp.id) &&
       emp.id !== toRecipient?.id
   ) : [];
+
+  const safeLeaveTypesFromDB = Array.isArray(leaveTypesFromDB) ? leaveTypesFromDB : [];
+  const safeCcrecipients = Array.isArray(ccRecipients) ? ccRecipients : [];
 
   if (loading) {
     return (
@@ -399,9 +421,9 @@ export const ComposeLeaveForm: React.FC<ComposeLeaveFormProps> = ({ initialData,
                 <SelectValue placeholder="Select leave type" />
               </SelectTrigger>
               <SelectContent>
-                {leaveTypesFromDB.map(type => (
-                  <SelectItem key={type.id} value={type.id.toString()}>
-                    {type.leaveType}
+                {safeLeaveTypesFromDB.map(type => (
+                  <SelectItem key={type?.id ?? `type-${Math.random()}`} value={(type?.id ?? 0).toString()}>
+                    {type?.leaveType ?? 'Unknown'}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -464,7 +486,7 @@ export const ComposeLeaveForm: React.FC<ComposeLeaveFormProps> = ({ initialData,
               <Label htmlFor="half-day-type" className="text-muted-foreground text-sm">
                 <span className="text-red-500">*</span> Half Day Type
               </Label>
-              <Select value={halfDayType} onValueChange={(v) => setHalfDayType(v as 'morning' | 'afternoon')}>
+              <Select value={halfDayType} onValueChange={(v) => setHalfDayType(v as 'morning' | 'afternoon' | '')}>
                 <SelectTrigger id="half-day-type">
                   <SelectValue placeholder="Select half day type" />
                 </SelectTrigger>
@@ -493,12 +515,24 @@ export const ComposeLeaveForm: React.FC<ComposeLeaveFormProps> = ({ initialData,
           id="reason"
           placeholder="Explain the reason for your leave request..."
           value={reason}
-          onChange={(e) => setReason(e.target.value)}
-          className="min-h-[150px] resize-none"
-          maxLength={500}
+          onChange={(e) => {
+            const newValue = e.target.value;
+            const newWordCount = countWords(newValue);
+            setReason(newValue);
+            
+            if (newWordCount > maxWords) {
+              setWordCountError(`Word limit exceeded! You have ${newWordCount} words, but maximum is ${maxWords} words.`);
+            } else {
+              setWordCountError('');
+            }
+          }}
+          className={cn("min-h-[150px] resize-none", wordCountError && "border-destructive focus-visible:ring-destructive")}
         />
-        <div className="text-right text-xs text-muted-foreground">
-          {reason.length} / 500
+        {wordCountError && (
+          <p className="text-xs text-destructive font-medium">{wordCountError}</p>
+        )}
+        <div className={cn("text-right text-xs", wordCountError ? "text-destructive" : "text-muted-foreground")}>
+          {wordCount} / {maxWords} words ({reason.length} characters)
         </div>
       </div>
 

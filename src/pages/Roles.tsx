@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { useRolePrivilege } from "@/context/RolePrivilegeContext";
 import { DashboardLayout } from "@/components/templates/DashboardLayout/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,49 +26,61 @@ import { Role } from "@/data/roles";
 import { roleService } from "@/components/services/roleService";
 
 export const Roles: React.FC = () => {
-
-  const [roles1, setRoles1] = useState<Role[]>([]); // paginated roles from API
+  const { hasRolePrivilege } = useRolePrivilege();
+  const [allRoles, setAllRoles] = useState<Role[]>([]); // all roles (sorted newest first)
   const [searchTerm, setSearchTerm] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [roleToDelete, setRoleToDelete] = useState<Role | null>(null);
   const [editingRole, setEditingRole] = useState<Role | null>(null);
   const [formData, setFormData] = useState({ name: "" });
   const [page, setPage] = useState(1); // UI page starts at 1
   const [size, setSize] = useState(5); // Requirement: Max 5 items per page
-  const [totalPages, setTotalPages] = useState(1);
-  const [totalRoles, setTotalRoles] = useState(0);
 
-  // Filter roles based on search
-  const filteredRoles = roles1.filter((role) =>
-    role.name.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
-  // Fetch paginated roles whenever page or size changes
-  useEffect(() => {
-    fetchRoles(page, size);
-  }, [page, size]);
-
-  const fetchRoles = async (page: number, size: number) => {
+  // Fetch all roles for global search and list display
+  const fetchAllRoles = async () => {
     try {
-      // Backend uses 0-based indexing, so subtract 1 from UI page
-      const res = await roleService.getRoles(page - 1, size);
-      console.log("Full API Response:", res);
-
-      // API structure: res is ResponseWrapper, res.data is RolePaginationDto
-      // detailed check: response.data in axios is the body. 
-      // roleService.getRoles returns response.data (Body).
-      // Body is { statusCode, message, data: { roles, ... } }
-      // So res.data is the pagination object.
-
-      const responseData = res.data; // RolePaginationDto
-      if (responseData && responseData.roles) {
-        setRoles1(responseData.roles);
-        setTotalPages(responseData.totalPages);
-        setTotalRoles(responseData.totalElements || responseData.roles.length);
+      const roles = await roleService.getAllRoles();
+      if (Array.isArray(roles)) {
+        // Sort newest (highest id) first
+        const sorted = [...roles].sort((a: any, b: any) => {
+          const ai = Number(a.id);
+          const bi = Number(b.id);
+          if (!Number.isNaN(ai) && !Number.isNaN(bi)) return bi - ai;
+          return 0;
+        });
+        setAllRoles(sorted);
       }
     } catch (error) {
-      console.log(error);
+      console.error("Error fetching all roles:", error);
     }
   };
+
+  useEffect(() => {
+    fetchAllRoles();
+  }, []);
+
+  // Filter roles based on search
+  const filteredRoles = searchTerm.trim()
+    ? allRoles.filter((role) =>
+      role.name.toLowerCase().includes(searchTerm.toLowerCase())
+    )
+    : allRoles;
+
+  // Calculate pagination details
+  const totalRoles = filteredRoles.length;
+  const totalPages = Math.ceil(totalRoles / size) || 1;
+
+  // Ensure current page is valid after filtering/deletion
+  useEffect(() => {
+    if (page > totalPages) {
+      setPage(Math.max(1, totalPages));
+    }
+  }, [totalPages, page]);
+
+  // Get current page slice
+  const startIndex = (page - 1) * size;
+  const paginatedRoles = filteredRoles.slice(startIndex, startIndex + size);
 
   // Pagination handlers
   const handleNext = () => {
@@ -98,15 +111,34 @@ export const Roles: React.FC = () => {
 
   // Save handler for add/edit
   const handleSave = async () => {
-    if (!formData.name) {
+    if (!formData.name.trim()) {
       toast.error("Please enter a role name");
+      return;
+    }
+
+    if (!/^[A-Za-z\s]+$/.test(formData.name.trim())) {
+      toast.error("Role name should only contain letters and spaces");
+      return;
+    }
+
+    const normalizedName = formData.name.trim().toLowerCase();
+    const isDuplicate = allRoles.some((role) => {
+      // If editing, skip the current role
+      if (editingRole && role.id === editingRole.id) return false;
+      return role.name.toLowerCase() === normalizedName;
+    });
+
+    if (isDuplicate) {
+      toast.error("Role with this name already exists");
       return;
     }
 
     try {
       if (editingRole) {
         // Update existing role
-        await roleService.updateRole(Number(editingRole.id), { name: formData.name });
+        await roleService.updateRole(Number(editingRole.id), {
+          name: formData.name,
+        });
         toast.success("Role updated successfully");
       } else {
         // Create new role
@@ -115,30 +147,43 @@ export const Roles: React.FC = () => {
       }
 
       handleCloseDialog();
-      // Refresh the roles list
-      await fetchRoles(page, size);
+      // Refresh list
+      await fetchAllRoles();
+      // If adding new, go to first page to see it
+      if (!editingRole) setPage(1);
     } catch (error: any) {
       console.error("Error saving role:", error);
-      const errorMessage = error.response?.data?.message || "Failed to save role. Please try again.";
+      const errorMessage =
+        error.response?.data?.message ||
+        "Failed to save role. Please try again.";
       toast.error(errorMessage);
     }
   };
 
-  // Delete handler
-  const handleDelete = async (role: Role) => {
-    if (
-      window.confirm(`Are you sure you want to delete the role "${role.name}"?`)
-    ) {
-      try {
-        await roleService.deleteRole(Number(role.id));
-        toast.success("Role deleted successfully");
-        // Refresh the roles list
-        await fetchRoles(page, size);
-      } catch (error: any) {
-        console.error("Error deleting role:", error);
-        const errorMessage = error.response?.data?.message || "Failed to delete role. Please try again.";
-        toast.error(errorMessage);
-      }
+  // Delete handler - Open Dialog
+  const handleDelete = (role: Role) => {
+    setRoleToDelete(role);
+    setIsDeleteDialogOpen(true);
+  };
+
+  // Confirm Delete
+  const confirmDelete = async () => {
+    if (!roleToDelete) return;
+
+    try {
+      await roleService.deleteRole(Number(roleToDelete.id));
+      toast.success("Role deleted successfully");
+      // Refresh list
+      await fetchAllRoles();
+    } catch (error: any) {
+      console.error("Error deleting role:", error);
+      const errorMessage =
+        error.response?.data?.message ||
+        "Failed to delete role. Please try again.";
+      toast.error(errorMessage);
+    } finally {
+      setIsDeleteDialogOpen(false);
+      setRoleToDelete(null);
     }
   };
 
@@ -152,14 +197,19 @@ export const Roles: React.FC = () => {
             <Input
               placeholder="Search roles..."
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={(e) => {
+                setSearchTerm(e.target.value);
+                setPage(1); // Reset to first page on search
+              }}
               className="pl-9"
             />
           </div>
-          <Button onClick={() => handleOpenDialog()}>
-            <Plus className="w-4 h-4 mr-2" />
-            Add Role
-          </Button>
+          {hasRolePrivilege('MANAGE_ROLES', 'canWrite') && (
+            <Button onClick={() => handleOpenDialog()}>
+              <Plus className="w-4 h-4 mr-2" />
+              Add Role
+            </Button>
+          )}
         </div>
 
         {/* Roles Table */}
@@ -172,7 +222,7 @@ export const Roles: React.FC = () => {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredRoles.length === 0 ? (
+              {paginatedRoles.length === 0 ? (
                 <TableRow>
                   <TableCell
                     colSpan={2}
@@ -182,7 +232,7 @@ export const Roles: React.FC = () => {
                   </TableCell>
                 </TableRow>
               ) : (
-                filteredRoles.map((role) => (
+                paginatedRoles.map((role) => (
                   <TableRow key={role.id}>
                     <TableCell className="font-medium">
                       <div className="flex items-center gap-2">
@@ -192,23 +242,27 @@ export const Roles: React.FC = () => {
                     </TableCell>
                     <TableCell className="text-center">
                       <div className="flex justify-center gap-2">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleOpenDialog(role)}
-                          title="Edit role"
-                        >
-                          <Pencil className="w-4 h-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleDelete(role)}
-                          className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                          title="Delete role"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
+                        {hasRolePrivilege('MANAGE_ROLES', 'canUpdate') && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleOpenDialog(role)}
+                            title="Edit role"
+                          >
+                            <Pencil className="w-4 h-4" />
+                          </Button>
+                        )}
+                        {hasRolePrivilege('MANAGE_ROLES', 'canDelete') && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleDelete(role)}
+                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                            title="Delete role"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        )}
                       </div>
                     </TableCell>
                   </TableRow>
@@ -268,13 +322,48 @@ export const Roles: React.FC = () => {
               <Button variant="outline" onClick={handleCloseDialog}>
                 Cancel
               </Button>
-              <Button onClick={handleSave}>
+              <Button
+                onClick={handleSave}
+                disabled={!formData.name.trim() || (!!editingRole && formData.name === editingRole.name)}
+              >
                 {editingRole ? "Update" : "Create"} Role
               </Button>
             </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Delete Confirmation Dialog */}
+        <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+          <DialogContent className="sm:max-w-[250px] p-4">
+            <DialogHeader>
+              <DialogTitle className="text-sm">Confirm Delete</DialogTitle>
+              <DialogDescription className="text-xs">
+                Are you sure you want to delete this role? This action cannot be
+                undone.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="flex justify-end gap-3 mt-3">
+              <Button
+                variant="outline"
+                size="sm"
+                className="px-4 py-1"
+                onClick={() => setIsDeleteDialogOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                size="sm"
+                className="px-4 py-1"
+                onClick={confirmDelete}
+              >
+                Delete
+              </Button>
+            </div>
           </DialogContent>
         </Dialog>
       </div>
     </DashboardLayout>
   );
 };
+

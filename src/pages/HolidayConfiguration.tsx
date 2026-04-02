@@ -18,15 +18,27 @@ import {
     DialogTitle,
     DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { format, parseISO } from "date-fns";
-import { CalendarIcon, Plus, Trash2, Save } from "lucide-react";
+import { CalendarIcon, Plus, Trash2, Save, Pencil } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from '@/context/AuthContext';
+import { useRolePrivilege } from '@/context/RolePrivilegeContext';
 import { companies } from '@/data/companies';
 import { toast } from "sonner";
 import {
     addHoliday,
+    updateHoliday,
     getHolidays,
     deleteHoliday,
     addWeeklyOff,
@@ -66,6 +78,7 @@ const parseBackendDate = (dateData: any): Date => {
 
 export const HolidayConfiguration = () => {
     const { hasPermission } = useAuth();
+    const { hasRolePrivilege } = useRolePrivilege();
 
     // Use numeric ID for company to match backend if possible, but companies data might be string. 
     // We will parse when sending to backend.
@@ -77,6 +90,9 @@ export const HolidayConfiguration = () => {
     const [newHolidayName, setNewHolidayName] = useState('');
     const [newHolidayDate, setNewHolidayDate] = useState<Date | undefined>(undefined);
     const [newHolidayType, setNewHolidayType] = useState<'public' | 'restricted'>('public');
+    const [editingHolidayId, setEditingHolidayId] = useState<number | null>(null);
+    const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+    const [holidayToDelete, setHolidayToDelete] = useState<number | null>(null);
 
     // Data State
     const [holidays, setHolidays] = useState<UIHoliday[]>([]);
@@ -167,27 +183,54 @@ export const HolidayConfiguration = () => {
             return;
         }
 
+        const nameRegex = /^[A-Za-z ]+$/;
+        if (!nameRegex.test(newHolidayName)) {
+            toast.error("Holiday Name should contain only alphabets and spaces.");
+            return;
+        }
+
         const backendType: HolidayType = newHolidayType === 'public' ? 'PUBLIC_HOLIDAY' : 'RESTRICTED_HOLIDAY';
         // Ensure date is formatted as yyyy-MM-dd
         const formattedDate = format(newHolidayDate, "yyyy-MM-dd");
 
         try {
-            await addHoliday({
-                name: newHolidayName,
-                date: formattedDate,
-                holidayType: backendType
-            });
+            if (editingHolidayId) {
+                const originalHoliday = holidays.find(h => h.id === editingHolidayId);
+                if (originalHoliday) {
+                    const originalFormattedDate = format(originalHoliday.date, "yyyy-MM-dd");
+                    if (originalHoliday.name.trim() === newHolidayName.trim() &&
+                        originalFormattedDate === formattedDate &&
+                        originalHoliday.type === newHolidayType) {
+                        toast.info("No changes to update");
+                        return;
+                    }
+                }
 
-            toast.success("Holiday added successfully");
+                await updateHoliday(editingHolidayId, {
+                    name: newHolidayName,
+                    date: formattedDate,
+                    holidayType: backendType
+                });
+                toast.success("Holiday updated successfully");
+            } else {
+                await addHoliday({
+                    name: newHolidayName,
+                    date: formattedDate,
+                    holidayType: backendType
+                });
+                toast.success("Holiday added successfully");
+            }
+
             setNewHolidayName('');
             setNewHolidayDate(undefined);
             setNewHolidayType('public');
+            setEditingHolidayId(null);
             setIsAddHolidayOpen(false);
             fetchData();
         } catch (error: any) {
-            console.error("Add Holiday Error:", error);
+            console.error(editingHolidayId ? "Update Holiday Error:" : "Add Holiday Error:", error);
 
-            let errorMessage = "Failed to add holiday";
+            let errorMessage = editingHolidayId ? "Failed to update holiday" : "Failed to add holiday";
             // Check if we have a response from the server
             if (error.response && error.response.data) {
                 const responseData = error.response.data;
@@ -212,10 +255,23 @@ export const HolidayConfiguration = () => {
         }
     };
 
-    const handleDeleteHoliday = async (id: number) => {
-        if (window.confirm("Are you sure you want to delete this holiday?")) {
+    const handleEditHoliday = (holiday: UIHoliday) => {
+        setNewHolidayName(holiday.name);
+        setNewHolidayDate(holiday.date);
+        setNewHolidayType(holiday.type);
+        setEditingHolidayId(holiday.id);
+        setIsAddHolidayOpen(true);
+    };
+
+    const handleDeleteHoliday = (id: number) => {
+        setHolidayToDelete(id);
+        setIsDeleteOpen(true);
+    };
+
+    const confirmDeleteHoliday = async () => {
+        if (holidayToDelete) {
             try {
-                await deleteHoliday(id);
+                await deleteHoliday(holidayToDelete);
                 toast.success("Holiday removed");
                 fetchData(); // Refresh list
             } catch (error: any) {
@@ -223,6 +279,8 @@ export const HolidayConfiguration = () => {
                 const backendMessage = error.response?.data?.statusMessage || "Failed to delete holiday";
                 toast.error(backendMessage);
             }
+            setIsDeleteOpen(false);
+            setHolidayToDelete(null);
         }
     };
 
@@ -276,16 +334,23 @@ export const HolidayConfiguration = () => {
                                     <CardTitle>Holiday List</CardTitle>
                                     <Dialog open={isAddHolidayOpen} onOpenChange={setIsAddHolidayOpen}>
                                         <DialogTrigger asChild>
-                                            <Button size="sm">
-                                                <Plus className="mr-2 h-4 w-4" />
-                                                Add Holiday
-                                            </Button>
+                                            {hasRolePrivilege('MANAGE_HOLIDAY_CONFIGURATION', 'canWrite') && (
+                                                <Button size="sm" onClick={() => {
+                                                    setEditingHolidayId(null);
+                                                    setNewHolidayName('');
+                                                    setNewHolidayDate(undefined);
+                                                    setNewHolidayType('public');
+                                                }}>
+                                                    <Plus className="mr-2 h-4 w-4" />
+                                                    Add Holiday
+                                                </Button>
+                                            )}
                                         </DialogTrigger>
                                         <DialogContent>
                                             <DialogHeader>
-                                                <DialogTitle>Add New Holiday</DialogTitle>
+                                                <DialogTitle>{editingHolidayId ? 'Edit Holiday' : 'Add New Holiday'}</DialogTitle>
                                                 <DialogDescription>
-                                                    Add a new holiday for the selected company.
+                                                    {editingHolidayId ? 'Update the details for this holiday.' : 'Add a new holiday for the selected company.'}
                                                 </DialogDescription>
                                             </DialogHeader>
                                             <div className="grid gap-4 py-4">
@@ -341,7 +406,7 @@ export const HolidayConfiguration = () => {
                                             </div>
                                             <DialogFooter>
                                                 <Button variant="outline" onClick={() => setIsAddHolidayOpen(false)}>Cancel</Button>
-                                                <Button onClick={handleAddHoliday}>Add Holiday</Button>
+                                                <Button onClick={handleAddHoliday}>{editingHolidayId ? 'Update Holiday' : 'Add Holiday'}</Button>
                                             </DialogFooter>
                                         </DialogContent>
                                     </Dialog>
@@ -371,14 +436,28 @@ export const HolidayConfiguration = () => {
                                                                 </p>
                                                             </div>
                                                         </div>
-                                                        <Button
-                                                            variant="ghost"
-                                                            size="icon"
-                                                            className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                                                            onClick={() => handleDeleteHoliday(holiday.id)}
-                                                        >
-                                                            <Trash2 className="h-4 w-4" />
-                                                        </Button>
+                                                        <div className="flex items-center">
+                                                            {hasRolePrivilege('MANAGE_HOLIDAY_CONFIGURATION', 'canUpdate') && (
+                                                                <Button
+                                                                    variant="ghost"
+                                                                    size="icon"
+                                                                    className="text-primary hover:text-primary hover:bg-primary/10 mr-1"
+                                                                    onClick={() => handleEditHoliday(holiday)}
+                                                                >
+                                                                    <Pencil className="h-4 w-4" />
+                                                                </Button>
+                                                            )}
+                                                            {hasRolePrivilege('MANAGE_HOLIDAY_CONFIGURATION', 'canDelete') && (
+                                                                <Button
+                                                                    variant="ghost"
+                                                                    size="icon"
+                                                                    className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                                                                    onClick={() => handleDeleteHoliday(holiday.id)}
+                                                                >
+                                                                    <Trash2 className="h-4 w-4" />
+                                                                </Button>
+                                                            )}
+                                                        </div>
                                                     </div>
                                                 ))}
                                         </div>
@@ -427,6 +506,7 @@ export const HolidayConfiguration = () => {
                                                 id={`day-${day.id}`}
                                                 checked={tempDays.includes(day.id)}
                                                 onCheckedChange={() => toggleWeeklyOffDay(day.id)}
+                                                disabled={!hasRolePrivilege('MANAGE_HOLIDAY_CONFIGURATION', 'canUpdate')}
                                             />
                                             <Label
                                                 htmlFor={`day-${day.id}`}
@@ -441,15 +521,32 @@ export const HolidayConfiguration = () => {
                                     ))}
                                 </div>
                                 <div className="mt-6 flex justify-end">
-                                    <Button onClick={handleSaveWeeklyOffs} className="gap-2">
-                                        <Save className="h-4 w-4" />
-                                        Update Changes
-                                    </Button>
+                                    {hasRolePrivilege('MANAGE_HOLIDAY_CONFIGURATION', 'canUpdate') && (
+                                        <Button onClick={handleSaveWeeklyOffs} className="gap-2">
+                                            <Save className="h-4 w-4" />
+                                            Update Changes
+                                        </Button>
+                                    )}
                                 </div>
                             </CardContent>
                         </Card>
                     </TabsContent>
                 </Tabs>
+
+                <AlertDialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
+                    <AlertDialogContent>
+                        <AlertDialogHeader>
+                            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                                This action cannot be undone. This will permanently delete the holiday.
+                            </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                            <AlertDialogCancel onClick={() => setHolidayToDelete(null)}>Cancel</AlertDialogCancel>
+                            <AlertDialogAction onClick={confirmDeleteHoliday}>Delete</AlertDialogAction>
+                        </AlertDialogFooter>
+                    </AlertDialogContent>
+                </AlertDialog>
             </div>
         </DashboardLayout>
     );
