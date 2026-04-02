@@ -1,4 +1,9 @@
-import { Department, User, LeavePolicy, LeaveBalance, LeaveRequest, Notification } from '@/types';
+import { Company, Department, User, LeavePolicy, LeaveBalance, LeaveRequest, Notification } from '@/types';
+
+export const companies: Company[] = [
+  { id: '1', name: 'Acme Corporation', address: '123 Main St', email: 'contact@acme.com', phoneNumber: '+1 (555) 123-4567' },
+  { id: '2', name: 'Beta Enterprise', address: '456 Elm St', email: 'info@beta.com', phoneNumber: '+1 (555) 987-6543' },
+];
 
 export const departments: Department[] = [
   { id: 'dept-1', name: 'Engineering', companyId: '1' },

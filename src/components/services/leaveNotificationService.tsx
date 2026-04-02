@@ -1,18 +1,9 @@
 // src/services/leaveNotificationService.ts  (recommended location & name)
 
-import axios from 'axios';
+import apiClient from './apiClient';
 
-// Adjust this import based on where your API_BASE_URL is defined
-// Common locations:
-// - src/constants/Api.ts
-// - src/config/api.ts
-// - src/utils/api.ts
-// If you're using a file named Api.ts with export const API_BASE_URL = "..."
-import { API_BASE_URL } from '@/constants/Api'; // Most common with Vite + @ alias
-// OR try these if the above doesn't work:
-// import { API_BASE_URL } from '@/config/Api';
-// import { API_BASE_URL } from '@/utils/Api';
-// import { API_BASE_URL } from '../constants/Api';
+// For demo mode this service uses the shared mock apiClient.
+// If you need raw URL support, disable DEMO_MODE in apiClient.tsx.
 
 // Types matching your backend DTOs
 interface CcConfiguration {
@@ -41,13 +32,12 @@ export const saveLeaveNotificationConfig = async (
   data: LeaveNotificationConfigRequest
 ) => {
   try {
-    const response = await axios.post(
-      `${API_BASE_URL}/leavemanagement/notification-config/add`,
+    const response = await apiClient.post(
+      `/leavemanagement/notification-config/add`,
       data
     );
     return response.data;
   } catch (error: any) {
-    // Improved error handling — re-throw with more context
     console.error('Failed to save leave notification config:', error);
     throw error.response?.data || error.message || error;
   }
@@ -62,8 +52,8 @@ export const updateCcConfigForRole = async (
   data: CcConfigForSingleRoleRequest
 ) => {
   try {
-    const response = await axios.post(
-      `${API_BASE_URL}/leavemanagement/notification-config/cc-config/role`,
+    const response = await apiClient.post(
+      `/leavemanagement/notification-config/cc-config/role`,
       data
     );
     return response.data;

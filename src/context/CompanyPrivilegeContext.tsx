@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { useAuth } from './AuthContext';
-import { getMyCompanyPrivileges } from '@/components/services/currentUserPrivilegeService';
+import { permissions, defaultRolePermissions } from '@/data/permissions';
 
 interface CompanyPrivilegeContextType {
     privileges: Set<string>;
@@ -18,25 +18,35 @@ export const CompanyPrivilegeProvider: React.FC<{ children: ReactNode }> = ({ ch
     const [isLoading, setIsLoading] = useState<boolean>(false);
     const [error, setError] = useState<string | null>(null);
 
+    const DEMO_MODE = true;
+
     const fetchPrivileges = async () => {
-        // Only fetch if authenticated and we have a user
         if (!isAuthenticated || !currentUser) {
             setPrivileges(new Set());
             return;
         }
 
-        try {
-            setIsLoading(true);
-            setError(null);
-            const response = await getMyCompanyPrivileges();
+        setIsLoading(true);
+        setError(null);
 
-            // Extract codes and create a Set for O(1) lookups
-            const privilegeCodes = new Set(response.privileges.map((p) => p.code));
-            setPrivileges(privilegeCodes);
-            // console.log('Company privileges loaded:', privilegeCodes);
+        try {
+            if (DEMO_MODE) {
+                if (currentUser.role === 'admin') {
+                    const allCodes = new Set(permissions.map((p) => p.id.toUpperCase()));
+                    setPrivileges(allCodes);
+                } else {
+                    const roleCodes = defaultRolePermissions[currentUser.role]?.size
+                        ? Array.from(defaultRolePermissions[currentUser.role]).map((id) => id.toUpperCase())
+                        : [];
+                    setPrivileges(new Set(roleCodes));
+                }
+                return;
+            }
+
+            // Non-demo fallback path can be configured later. For now, no backend calls in demo.
+            setPrivileges(new Set());
         } catch (err: any) {
             console.error('Failed to load company privileges:', err);
-            // Don't set error state for 403s/401s as it might be transient during login/logout
             if (err.response?.status !== 401 && err.response?.status !== 403) {
                 setError('Failed to load company privileges');
             }
@@ -55,8 +65,8 @@ export const CompanyPrivilegeProvider: React.FC<{ children: ReactNode }> = ({ ch
     }, [isAuthenticated, currentUser?.id]);
 
     const hasPrivilege = (privilegeCode: string): boolean => {
-        if (!isAuthenticated) return false;
-        // Admin roles might bypass this check if desired, but here we strictly follow company privileges
+        if (!isAuthenticated || !currentUser) return false;
+        if (currentUser.role === 'admin') return true;
         return privileges.has(privilegeCode);
     };
 

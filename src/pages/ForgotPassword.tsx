@@ -9,8 +9,7 @@ import { KeyRound, ArrowLeft, Loader2, Eye, EyeOff } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { InputOTP, InputOTPGroup, InputOTPSlot, InputOTPSeparator } from "@/components/ui/input-otp";
-import axios from 'axios';
-import { API_BASE_URL } from '@/constants/Api';
+import apiClient from '@/components/services/apiClient';
 
 export const ForgotPassword: React.FC = () => {
     const [step, setStep] = useState<'EMAIL' | 'OTP' | 'RESET' | 'SUCCESS'>('EMAIL');
@@ -41,14 +40,12 @@ export const ForgotPassword: React.FC = () => {
         setError('');
         setIsLoading(true);
         try {
-            await axios.post(`${API_BASE_URL}/auth/otp`,
-                { email: email.trim() });
+            await apiClient.post('/auth/otp', { email: email.trim() });
 
             toast.success('OTP code resent successfully', {
                 description: 'Please check your email for the verification code.',
             });
             setTimer(30);
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
         } catch (err: any) {
             const message = err.response?.data?.message || 'Failed to resend OTP code. Please try again.';
             setError(message);
@@ -73,15 +70,13 @@ export const ForgotPassword: React.FC = () => {
         }
 
         try {
-            await axios.post(`${API_BASE_URL}/auth/otp`,
-                { email: email.trim() });
+            await apiClient.post('/auth/otp', { email: email.trim() });
 
             toast.success('OTP code sent to your email Successfully', {
                 description: 'Please check your email for the verification code.',
             });
             setStep('OTP');
             setTimer(30);
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
         } catch (err: any) {
             const message = err.response?.data?.message || 'Failed to send OTP code. Please try again.';
             setError(message);
@@ -97,14 +92,13 @@ export const ForgotPassword: React.FC = () => {
         setIsLoading(true);
 
         try {
-            await axios.post(`${API_BASE_URL}/auth/otp/verify`, {
+            await apiClient.post('/auth/otp/verify', {
                 email: email.trim(),
                 otp: otp
             });
 
             toast.success('OTP verified successfully');
             setStep('RESET');
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
         } catch (err: any) {
             const message = err.response?.data?.message || 'Invalid OTP code. Please try again.';
             setError(message);
@@ -131,12 +125,11 @@ export const ForgotPassword: React.FC = () => {
         setIsLoading(true);
 
         try {
-            // First, verify that the new password is different from the old password
-            // by attempting login with the new password - if it succeeds, they are the same
-            const loginCheckResponse = await axios.post(`${API_BASE_URL}/auth/login`, {
+            // In demo mode, skip actual backend checks and accept reset flow
+            const loginCheckResponse = await apiClient.post('/auth/login', {
                 email: email.trim(),
                 password: newPassword
-            }).catch(() => null); // Suppress error if login fails (which is expected)
+            }).catch(() => null);
 
             if (loginCheckResponse && loginCheckResponse.status === 200) {
                 setError('New password cannot be the same as the old password');
@@ -144,7 +137,7 @@ export const ForgotPassword: React.FC = () => {
                 return;
             }
 
-            await axios.put(`${API_BASE_URL}/auth/update`, {
+            await apiClient.put('/auth/update', {
                 email: email.trim(),
                 newPassword: newPassword,
                 confirmPassword: confirmPassword

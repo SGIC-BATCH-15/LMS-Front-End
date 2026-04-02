@@ -59,17 +59,17 @@ interface ResponseWrapper<T> {
 
 export const getPendingRequestsCount = async (status: string) => {
     const response = await apiClient.get<ResponseWrapper<number>>(`/dashboard/calculatePendingRequest/${status}`);
-    return response.data.data;
+    return response.data?.data ?? response.data ?? 0;
 };
 
 export const getTotalLeaveTaken = async () => {
     const response = await apiClient.get<ResponseWrapper<number>>('/dashboard/calculateLeaveTaken');
-    return response.data.data;
+    return response.data?.data ?? response.data ?? 0;
 };
 
 export const getRejectedRequestsCount = async () => {
     const response = await apiClient.get<ResponseWrapper<number>>(`/dashboard/calculateReject/REJECTED`);
-    return response.data.data;
+    return response.data?.data ?? response.data ?? 0;
 };
 
 // --- Other Data ---
@@ -87,7 +87,14 @@ export const getAllLeaveRequests = async () => {
 };
 
 export const getPendingApprovals = async () => {
-    // LeaveApprovalController returns list directly, not wrapped
+    // LeaveApprovalController might return data array directly or wrapped in { data: ... }
     const response = await apiClient.get<LeaveRequestResponse[]>(`/leave/approvals/pending`);
-    return response.data;
+    const payload = response.data;
+    if (Array.isArray(payload)) {
+        return payload;
+    }
+    if (payload && typeof payload === 'object' && 'data' in payload && Array.isArray((payload as any).data)) {
+        return (payload as any).data;
+    }
+    return [];
 };

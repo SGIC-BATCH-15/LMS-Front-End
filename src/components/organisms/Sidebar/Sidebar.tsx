@@ -31,8 +31,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { API_BASE_URL } from '@/constants/Api';
-import axios from 'axios';
+import apiClient from '@/components/services/apiClient';
 
 interface MenuItem {
   to?: string;
@@ -139,28 +138,8 @@ export const Sidebar: React.FC = () => {
   const filteredNavItems = currentUser ? filterItems(navItems) : [];
 
 
-  // Enhanced logout with backend call
-  const handleLogout = async () => {
-    const token = localStorage.getItem('authToken');
-
-    if (token) {
-      try {
-        await axios.post(
-          `${API_BASE_URL}/auth/logout`,
-          {}, // No body needed
-          {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          }
-        );
-      } catch (error) {
-        // Silently ignore logout errors — user is logging out anyway
-        console.warn('Logout API call failed (expected on token issues):', error);
-      }
-    }
-
-    // Always clear local state regardless of API result
+  // Demo logout: no backend integration
+  const handleLogout = () => {
     logout();
     navigate('/login');
   };

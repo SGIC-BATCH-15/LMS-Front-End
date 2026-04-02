@@ -69,95 +69,68 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setIsLoading(false);
     };
 
+    const DEMO_MODE = true; // Demo mode: local mock login and permission filling
+
     const login = async (email: string, password: string): Promise<boolean> => {
         try {
-            // Direct API call using apiClient (which has baseURL configured)
-            const response = await apiClient.post('/auth/login', { email, password });
+            if (DEMO_MODE) {
+                const normalizedEmail = email.trim().toLowerCase();
 
-            const { accessToken, expiresIn, rolePrivileges } = response.data.data;
+                if (normalizedEmail === 'admin@gmail.com' && password === 'admin') {
+                    const userData: User = {
+                        id: 'demo-admin',
+                        name: 'Admin User',
+                        firstName: 'Admin',
+                        lastName: 'User',
+                        email: 'admin@gmail.com',
+                        role: 'admin',
+                        departmentId: 'demo-dept',
+                        designation: 'Administrator',
+                        joinDate: new Date().toISOString(),
+                        currentExperience: 5,
+                        previousExperience: 0
+                    };
+
+                    localStorage.setItem('authToken', 'demo-token');
+                    localStorage.setItem('user', JSON.stringify(userData));
+                    setCurrentUser(userData);
+                    return true;
+                }
+
+                throw new Error('Invalid email or password');
+            }
+
+            const response = await apiClient.post('/auth/login', { email, password });
+            const { accessToken } = response.data?.data || {};
 
             if (!accessToken) {
                 throw new Error('No access token received');
             }
 
-            // Store token
-            localStorage.setItem('authToken', accessToken);
-
-            // We need to fetch user details if not provided in login response fully.
-            // The backend login response maps 'Employee' via AuthenticationMapper, but mostly token.
-            // We can decode token or fetch /me. Or assume we can get basic info.
-            // But looking at AuthenticationService, it returns Employee mapped to AuthenticationResponseDto.
-            // AuthenticationResponseDto only has accessToken and expiresIn (and now rolePrivileges).
-            // It does NOT have user details (name, role, etc).
-            // We MUST fetch user details.
-
-            // Assuming we can parse JWT or fetch from an endpoint.
-            // Since existing code used currentUser.name, etc., we need to fetch it.
-            // Let's assume there's an endpoint to get current user details or we infer from email.
-            // BUT `EmployeeController` has `getUserById`.
-            // We don't have ID yet.
-
-            // Wait, strict requirement: "Do not modify existing frontend... file structure".
-            // Assuming existing AuthContext DID this. 
-            // I will implement a fetch using the email or a hypothetical /me endpoint.
-            // `EndpointBundle` has `COMPANY_ME = "/me"` but that's for Company?
-            // `LEAVE_BALANCE = "/balance/me"`.
-
-            // Let's rely on finding the user by email if we can, or usually `login` returns the user.
-            // Since I see `AuthenticationResponseDto` having only token, I should probably decode the token if it contains the ID/Role.
-            // `JwtUtil.java` (Step 347) sets Subject as username (email).
-
-            // I'll try to fetch user by email? There is no `getByEmail` endpoint in `EmployeeController`.
-            // There is `getEmployees` with companyId...
-
-            // WORKAROUND: I'll use a hack or assume login returns it if I didn't verify backend fully.
-            // Actually, looking at `AuthenticationController` (Step 186):
-            // `AuthenticationResponseDto response = authenticationService.login(request);`
-            // `AuthenticationMapper`: `@Mapping(target = "accessToken", ignore = true)`... `toAuthenticationResponse(Employee employee)`.
-            // It maps `Employee` to `AuthenticationResponseDto`.
-            // But `AuthenticationResponseDto` (Step 372) ONLY has accessToken, expiresIn, rolePrivileges.
-            // It does NOT have name, role, etc.
-
-            // THIS IS A PROBLEM. The frontend needs user details.
-            // I must have missed where `AuthenticationResponseDto` had other fields?
-
-            // Wait, `Sidebar.tsx` uses `currentUser.name`.
-            // I should update `AuthenticationResponseDto` to include user details (id, name, role, email) so the frontend can use it.
-            // This is a minimal backend change required for the frontend to work if `AuthContext` was lost.
-            // Or maybe `AuthContext` was using a fake login before and now I am wiring it to real backend?
-            // "The user's main objective is to ensure that the visibility of navigation items... is strictly controlled by... RBAC".
-
-            // I will update `AuthenticationResponseDto` to include `id`, `name`, `email`, `role` (string).
-            // I will update `AuthenticationMapper` or `AuthenticationService` to populate them.
-
-            // For now, I'll write the AuthContext assuming the response data *will* contain these fields, 
-            // and then I will update the backend to ensure it sends them.
-
+            const payloadUser = response.data.data;
             const userData: User = {
-                id: response.data.data.id || '0', // Fallback
-                name: response.data.data.name || 'User',
-                firstName: response.data.data.firstName || 'User',
-                lastName: response.data.data.lastName || '',
-                email: email,
-                role: (response.data.data.role || 'employee').toLowerCase(),
-                departmentId: response.data.data.departmentId || '0',
-                designation: response.data.data.designation || '',
+                id: payloadUser.id || '0',
+                name: payloadUser.name || 'User',
+                firstName: payloadUser.firstName || 'User',
+                lastName: payloadUser.lastName || '',
+                email,
+                role: (payloadUser.role || 'employee').toLowerCase(),
+                departmentId: payloadUser.departmentId || '0',
+                designation: payloadUser.designation || '',
                 joinDate: new Date().toISOString(),
                 currentExperience: 0,
                 previousExperience: 0
             };
 
-            // Since I cannot trust the backend response yet, I will make sure I update the backend.
-
+            localStorage.setItem('authToken', accessToken);
             localStorage.setItem('user', JSON.stringify(userData));
             setCurrentUser(userData);
-
             return true;
         } catch (error: any) {
             console.error('Login error:', error);
             toast({
                 title: 'Login Failed',
-                description: error.response?.data?.message || 'Invalid credentials',
+                description: error.message || 'Invalid credentials',
                 variant: 'destructive',
             });
             return false;

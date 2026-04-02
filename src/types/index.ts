@@ -27,6 +27,14 @@ export interface Department {
   companyId: string;
 }
 
+export interface Company {
+  id: string;
+  name: string;
+  address: string;
+  email: string;
+  phoneNumber: string;
+}
+
 export interface User {
   id: string;
   name: string; // Keeps full name for compatibility

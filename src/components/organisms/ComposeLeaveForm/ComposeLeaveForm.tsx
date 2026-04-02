@@ -271,6 +271,9 @@ export const ComposeLeaveForm: React.FC<ComposeLeaveFormProps> = ({ initialData,
       emp.id !== toRecipient?.id
   ) : [];
 
+  const safeLeaveTypesFromDB = Array.isArray(leaveTypesFromDB) ? leaveTypesFromDB : [];
+  const safeCcrecipients = Array.isArray(ccRecipients) ? ccRecipients : [];
+
   if (loading) {
     return (
       <div className="bg-card border border-border rounded-xl overflow-hidden p-8 flex items-center justify-center">
@@ -418,9 +421,9 @@ export const ComposeLeaveForm: React.FC<ComposeLeaveFormProps> = ({ initialData,
                 <SelectValue placeholder="Select leave type" />
               </SelectTrigger>
               <SelectContent>
-                {leaveTypesFromDB.map(type => (
-                  <SelectItem key={type.id} value={type.id.toString()}>
-                    {type.leaveType}
+                {safeLeaveTypesFromDB.map(type => (
+                  <SelectItem key={type?.id ?? `type-${Math.random()}`} value={(type?.id ?? 0).toString()}>
+                    {type?.leaveType ?? 'Unknown'}
                   </SelectItem>
                 ))}
               </SelectContent>

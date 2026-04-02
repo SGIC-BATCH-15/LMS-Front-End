@@ -231,7 +231,7 @@ export const Departments: React.FC = () => {
     };
 
     const getCompanyName = (id: string) => {
-        const comp = companies.find(c => c.id.toString() === id.toString());
+        const comp = companies.find(c => (c?.id ?? '').toString() === (id ?? '').toString());
         return comp ? comp.name : 'Unknown';
     };
 

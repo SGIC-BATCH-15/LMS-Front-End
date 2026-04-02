@@ -91,7 +91,7 @@ export const Dashboard: React.FC = () => {
         // Fetch Pending Approvals (For Managers/Admins)
         if (currentUser.role === 'manager' || currentUser.role === 'admin') {
           const approvals = await fetchPendingApprovals();
-          setPendingApprovals(approvals);
+          setPendingApprovals(Array.isArray(approvals) ? approvals : (approvals as any).data || []);
         }
 
       } catch (error) {
@@ -166,7 +166,7 @@ export const Dashboard: React.FC = () => {
               </Button>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {leaveBalances.map((balance) => (
+              {(leaveBalances || []).map((balance) => (
                 <LeaveBalanceCard
                   key={balance.leaveTypeId}
                   balance={{
@@ -249,26 +249,40 @@ export const Dashboard: React.FC = () => {
               </Button>
             </div>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              {pendingApprovals.slice(0, 4).map(request => (
-                <LeaveRequestCard
-                  key={request.id}
-                  request={{
-                    id: request.id.toString(),
-                    employeeId: request.employee.id,
-                    employeeName: `${request.employee.firstName} ${request.employee.lastName}`,
-                    leaveType: normalizeLeaveType(request.leaveType.leaveType),
-                    status: request.status.toLowerCase(),
-                    startDate: request.startDate,
-                    endDate: request.endDate,
-                    days: request.leaveDuration,
-                    reason: request.reason,
-                    approvalSteps: [] // Prevent crash
-                  } as any}
-                  showActions
-                  onApprove={(id) => console.log('Approve:', id)}
-                  onReject={(id) => console.log('Reject:', id)}
-                />
-              ))}
+              {pendingApprovals.slice(0, 4).map(request => {
+                const employee = request.employee || {
+                  id: 0,
+                  firstName: 'Unknown',
+                  lastName: 'User',
+                  email: ''
+                };
+
+                const leaveTypeData = request.leaveType || {
+                  id: 0,
+                  leaveType: 'annual'
+                };
+
+                return (
+                  <LeaveRequestCard
+                    key={request.id ?? `${request.startDate}-${request.endDate}`}
+                    request={{
+                      id: (request.id ?? '').toString(),
+                      employeeId: employee.id ?? 0,
+                      employeeName: `${employee.firstName ?? 'Unknown'} ${employee.lastName ?? ''}`.trim(),
+                      leaveType: normalizeLeaveType(leaveTypeData.leaveType ?? 'annual'),
+                      status: (request.status ?? 'pending').toLowerCase(),
+                      startDate: request.startDate ?? '',
+                      endDate: request.endDate ?? '',
+                      days: request.leaveDuration ?? 0,
+                      reason: request.reason ?? 'No reason provided',
+                      approvalSteps: Array.isArray(request.approvalSteps) ? request.approvalSteps : []
+                    } as any}
+                    showActions
+                    onApprove={(id) => console.log('Approve:', id)}
+                    onReject={(id) => console.log('Reject:', id)}
+                  />
+                );
+              })}
             </div>
           </div>
         )}

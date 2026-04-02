@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useAuth } from './AuthContext';
-import apiClient from '@/components/services/apiClient';
+import { permissions as rolePermissionList, defaultRolePermissions } from '@/data/permissions';
 
 interface RolePrivilege {
     id: number;
@@ -40,6 +40,8 @@ export const RolePrivilegeProvider: React.FC<{ children: React.ReactNode }> = ({
     const [rolePrivileges, setRolePrivileges] = useState<RolePrivilege[]>([]);
     const [loading, setLoading] = useState(true);
 
+    const DEMO_MODE = true;
+
     const fetchPrivileges = async () => {
         if (!currentUser) {
             setRolePrivileges([]);
@@ -47,10 +49,52 @@ export const RolePrivilegeProvider: React.FC<{ children: React.ReactNode }> = ({
             return;
         }
 
-        try {
-            setLoading(true);
+        setLoading(true);
 
-            // Fetch role privileges and user privileges in parallel
+        try {
+            if (DEMO_MODE) {
+                const effectivePrivileges: RolePrivilege[] = [];
+                const role = currentUser.role || 'employee';
+
+                if (role === 'admin') {
+                    rolePermissionList.forEach((perm, index) => {
+                        effectivePrivileges.push({
+                            id: index + 1,
+                            roleId: 1,
+                            roleName: 'Admin',
+                            privilegeId: index + 1,
+                            privilegeName: perm.name,
+                            privilegeCode: perm.id.toUpperCase(),
+                            canRead: true,
+                            canWrite: true,
+                            canUpdate: true,
+                            canDelete: true
+                        });
+                    });
+                } else {
+                    const rolePermSet = defaultRolePermissions[role] || new Set();
+                    rolePermissionList.forEach((perm, index) => {
+                        const has = rolePermSet.has(perm.id);
+                        effectivePrivileges.push({
+                            id: index + 1,
+                            roleId: role === 'manager' ? 2 : role === 'staff' ? 3 : 4,
+                            roleName: role.charAt(0).toUpperCase() + role.slice(1),
+                            privilegeId: index + 1,
+                            privilegeName: perm.name,
+                            privilegeCode: perm.id.toUpperCase(),
+                            canRead: has,
+                            canWrite: has,
+                            canUpdate: has,
+                            canDelete: has
+                        });
+                    });
+                }
+
+                setRolePrivileges(effectivePrivileges);
+                return;
+            }
+
+            // Fallback to backend API when demo mode is off
             const [roleRes, userRes] = await Promise.all([
                 apiClient.get('/settings/role-privileges/get'),
                 apiClient.get('/settings/user-privileges/mine')
@@ -58,65 +102,29 @@ export const RolePrivilegeProvider: React.FC<{ children: React.ReactNode }> = ({
 
             let effectivePrivileges: RolePrivilege[] = [];
 
-            // 1. Process Role Privileges
             if (roleRes.data && roleRes.data.data) {
                 const allRolePrivileges = roleRes.data.data as RolePrivilege[];
                 const userRole = currentUser.role || '';
-
-                // Filter by current user's role
                 effectivePrivileges = allRolePrivileges.filter(rp =>
                     rp.roleName.toLowerCase() === userRole.toLowerCase()
                 );
             }
 
-            // 2. Process User Privileges (Overrides)
             if (userRes.data && userRes.data.data) {
                 const userPrivileges = userRes.data.data as UserPrivilege[];
-
-                // Merge/Override logic
-                // Create a map for quick lookup of existing role privileges
                 const privMap = new Map<string, RolePrivilege>();
                 effectivePrivileges.forEach(rp => privMap.set(rp.privilegeCode, rp));
 
                 userPrivileges.forEach(up => {
                     const existing = privMap.get(up.privilegeCode);
                     if (existing) {
-                        // Override existing role privilege actions with user privilege actions
-                        const merged: RolePrivilege = {
+                        privMap.set(up.privilegeCode, {
                             ...existing,
                             canRead: up.canRead,
                             canWrite: up.canWrite,
                             canUpdate: up.canUpdate,
-                            canDelete: up.canDelete,
-                            // we could add a flag here like isOverridden: true
-                        };
-                        privMap.set(up.privilegeCode, merged);
-                    } else {
-                        // User has a privilege that is NOT in their role? 
-                        // If we want to allow additive privileges:
-                        /*
-                        const newPriv: RolePrivilege = {
-                            id: up.id || 0,
-                            roleId: 0, 
-                            roleName: 'User-Specific',
-                            privilegeId: up.privilegeId,
-                            privilegeName: '', // Backend DTO might not send name if not requested, but let's assume valid
-                            privilegeCode: up.privilegeCode,
-                            canRead: up.canRead,
-                            canWrite: up.canWrite,
-                            canUpdate: up.canUpdate,
-                            canDelete: up.canDelete,
-                        };
-                        privMap.set(up.privilegeCode, newPriv);
-                        */
-                        // For now, adhering to "user can set privileges... which enabled in the role".
-                        // This implies User Privilege is a SUBSET or Override of existing. 
-                        // But if the prompt says "enable option... in user priviliges", maybe they want to ENABLE it even if disabled in Role?
-                        // "enabled in role" usually means the row exists. 
-                        // I will strictly OVERRIDE. If it's not in Role, I won't add it (based on "enabled in role privileges" constraint earlier).
-                        // But wait, the user said "i have only set read for... user... but its working in role... OK".
-                        // This implies the user wants the User settings to take effect.
-                        // I will only override if it exists in Role (as per my previous Filter page implementation).
+                            canDelete: up.canDelete
+                        });
                     }
                 });
 
@@ -124,7 +132,6 @@ export const RolePrivilegeProvider: React.FC<{ children: React.ReactNode }> = ({
             }
 
             setRolePrivileges(effectivePrivileges);
-
         } catch (error) {
             console.error('Failed to fetch privileges:', error);
         } finally {
